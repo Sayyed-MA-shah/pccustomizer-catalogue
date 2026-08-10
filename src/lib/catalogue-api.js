@@ -49,5 +49,6 @@ export async function getProducts(params = {}) {
 }
 
 export async function getProduct(id) {
-  return catalogueFetch(`/products/${encodeURIComponent(id)}`)
+  const result = await catalogueFetch(`/products/${encodeURIComponent(id)}`)
+  return result?.data ?? result
 }
