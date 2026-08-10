@@ -151,15 +151,26 @@ export default async function ProductDetailPage({ params }) {
           </div>
         )}
 
-        {Object.keys(specs).length > 0 && (
+        {specs && (typeof specs === 'string' ? specs.trim().length > 0 : Object.keys(specs).length > 0) && (
           <div className="space-y-3">
             <h2 className="font-semibold text-foreground">Specifications</h2>
             <Separator />
-            <div>
-              {Object.entries(specs).map(([key, val]) => (
-                <SpecRow key={key} label={key} value={String(val)} />
-              ))}
-            </div>
+            {typeof specs === 'string' ? (
+              <ul className="space-y-1">
+                {specs.trim().split(/\n+/).map((line, i) => line.trim() && (
+                  <li key={i} className="text-sm text-muted-foreground flex gap-2">
+                    <span className="text-primary mt-1 shrink-0">·</span>
+                    <span>{line.trim()}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div>
+                {Object.entries(specs).map(([key, val]) => (
+                  <SpecRow key={key} label={key} value={String(val)} />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
