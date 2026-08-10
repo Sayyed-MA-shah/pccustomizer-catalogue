@@ -62,8 +62,8 @@ async function ProductResults({ searchParams }) {
     )
   }
 
-  const products = result?.products ?? result?.data ?? (Array.isArray(result) ? result : [])
-  const total = result?.total ?? result?.count ?? products.length
+  const products = result?.data ?? result?.products ?? (Array.isArray(result) ? result : [])
+  const total = result?.pagination?.total ?? result?.total ?? products.length
 
   if (products.length === 0) {
     return (
