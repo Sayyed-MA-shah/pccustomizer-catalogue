@@ -15,13 +15,15 @@ export default function ProductCard({ product }) {
     id,
     title,
     brand,
-    model,
     sku,
     condition,
     price,
-    stock,
-    image_url,
+    images,
   } = product
+
+  const stock = product.stock ?? product.stock_quantity ?? null
+  const primaryImage = images?.[0]?.url ?? null
+  const primaryAlt = images?.[0]?.alt_text || title || 'Product image'
 
   const formattedPrice = price != null
     ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(price)
@@ -31,10 +33,10 @@ export default function ProductCard({ product }) {
     <div className="group rounded-lg border bg-card flex flex-col overflow-hidden hover:border-primary/50 hover:shadow-md transition-all">
       {/* Image */}
       <div className="relative aspect-[4/3] bg-muted overflow-hidden">
-        {image_url ? (
+        {primaryImage ? (
           <Image
-            src={image_url}
-            alt={title || 'Product image'}
+            src={primaryImage}
+            alt={primaryAlt}
             fill
             className="object-contain p-3 group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

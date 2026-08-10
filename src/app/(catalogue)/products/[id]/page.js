@@ -40,18 +40,20 @@ export default async function ProductDetailPage({ params }) {
     model,
     sku,
     ean,
+    ean_sku,
     condition,
     price,
-    stock,
     description,
     category,
     subcategory,
-    image_url,
-    specifications = {},
+    images = [],
+    specifications,
   } = product
 
-  const images = product.images ?? (image_url ? [image_url] : [])
-  const primaryImage = images[0] ?? null
+  const stock = product.stock ?? product.stock_quantity ?? null
+  const specs = specifications ?? {}
+  const primaryImage = images[0]?.url ?? null
+  const primaryAlt = images[0]?.alt_text || title || 'Product image'
   const thumbs = images.slice(1, 5)
   const formattedPrice = formatPrice(price)
 
@@ -72,7 +74,7 @@ export default async function ProductDetailPage({ params }) {
             {primaryImage ? (
               <Image
                 src={primaryImage}
-                alt={title || 'Product image'}
+                alt={primaryAlt}
                 width={600}
                 height={450}
                 className="object-contain w-full h-full p-4"
@@ -86,9 +88,9 @@ export default async function ProductDetailPage({ params }) {
           </div>
           {thumbs.length > 0 && (
             <div className="flex gap-2">
-              {thumbs.map((src, i) => (
+              {thumbs.map((img, i) => (
                 <div key={i} className="w-16 h-16 rounded border bg-muted overflow-hidden shrink-0">
-                  <Image src={src} alt="" width={64} height={64} className="object-contain w-full h-full p-1" />
+                  <Image src={img.url} alt={img.alt_text || ''} width={64} height={64} className="object-contain w-full h-full p-1" />
                 </div>
               ))}
             </div>
@@ -131,7 +133,7 @@ export default async function ProductDetailPage({ params }) {
           <Separator />
 
           <div className="space-y-0">
-            <SpecRow label="EAN" value={ean} />
+            <SpecRow label="EAN" value={ean ?? ean_sku} />
             <SpecRow label="Condition" value={condition} />
             <SpecRow label="Category" value={subcategory ? `${category} › ${subcategory}` : category} />
             <SpecRow label="Brand" value={brand} />
@@ -149,12 +151,12 @@ export default async function ProductDetailPage({ params }) {
           </div>
         )}
 
-        {Object.keys(specifications).length > 0 && (
+        {Object.keys(specs).length > 0 && (
           <div className="space-y-3">
             <h2 className="font-semibold text-foreground">Specifications</h2>
             <Separator />
             <div>
-              {Object.entries(specifications).map(([key, val]) => (
+              {Object.entries(specs).map(([key, val]) => (
                 <SpecRow key={key} label={key} value={String(val)} />
               ))}
             </div>
