@@ -40,7 +40,7 @@ export async function POST(request) {
   const { error } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: false, // set to true in Supabase dashboard for production
+    email_confirm: true,
     user_metadata: {
       full_name:    fullName,
       company_name: companyName,
