@@ -1,20 +1,62 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Package } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
+import { getProduct } from '@/lib/catalogue-api'
 
 export const revalidate = 0
 
+function formatPrice(price) {
+  if (price == null) return null
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(price)
+}
+
+function SpecRow({ label, value }) {
+  if (!value) return null
+  return (
+    <div className="flex gap-3 py-2 border-b last:border-0">
+      <span className="text-sm text-muted-foreground w-36 shrink-0">{label}</span>
+      <span className="text-sm text-foreground">{value}</span>
+    </div>
+  )
+}
+
 export default async function ProductDetailPage({ params }) {
-  // Phase 3: will call catalogue-api.js
-  // const { id } = await params
-  // const product = await getProduct(id)
-  // if (!product) notFound()
+  const { id } = await params
+
+  let product = null
+  try {
+    product = await getProduct(id)
+  } catch {
+    notFound()
+  }
+
+  if (!product) notFound()
+
+  const {
+    title,
+    brand,
+    model,
+    sku,
+    ean,
+    condition,
+    price,
+    stock,
+    description,
+    category,
+    subcategory,
+    image_url,
+    specifications = {},
+  } = product
+
+  const images = product.images ?? (image_url ? [image_url] : [])
+  const primaryImage = images[0] ?? null
+  const thumbs = images.slice(1, 5)
+  const formattedPrice = formatPrice(price)
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 space-y-8">
       <Link
         href="/products"
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -24,82 +66,100 @@ export default async function ProductDetailPage({ params }) {
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Image area */}
+        {/* Image gallery */}
         <div className="space-y-3">
-          <div className="aspect-[4/3] rounded-lg border bg-muted flex items-center justify-center">
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <Package className="w-12 h-12 opacity-40" />
-              <span className="text-sm">Product image</span>
+          <div className="aspect-[4/3] rounded-lg border bg-muted overflow-hidden flex items-center justify-center">
+            {primaryImage ? (
+              <Image
+                src={primaryImage}
+                alt={title || 'Product image'}
+                width={600}
+                height={450}
+                className="object-contain w-full h-full p-4"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <Package className="w-12 h-12 opacity-30" />
+                <span className="text-sm">No image available</span>
+              </div>
+            )}
+          </div>
+          {thumbs.length > 0 && (
+            <div className="flex gap-2">
+              {thumbs.map((src, i) => (
+                <div key={i} className="w-16 h-16 rounded border bg-muted overflow-hidden shrink-0">
+                  <Image src={src} alt="" width={64} height={64} className="object-contain w-full h-full p-1" />
+                </div>
+              ))}
             </div>
-          </div>
-          {/* Thumbnail strip */}
-          <div className="flex gap-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="w-16 h-16 rounded border bg-muted shrink-0" />
-            ))}
-          </div>
+          )}
         </div>
 
         {/* Product info */}
         <div className="space-y-5">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Brand / Category
-            </p>
-            <h1 className="text-2xl font-bold text-foreground leading-tight">
-              Product Title
-            </h1>
+            {brand && (
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {brand}{model ? ` • ${model}` : ''}
+              </p>
+            )}
+            <h1 className="text-2xl font-bold text-foreground leading-tight">{title}</h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-medium px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">
-              Grade A
-            </span>
-            <span className="text-sm text-muted-foreground">SKU: —</span>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-2">
-            <p className="text-3xl font-bold text-foreground">—</p>
-            <p className="text-sm text-emerald-600 font-medium">— in stock</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            {condition && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">
+                {condition}
+              </span>
+            )}
+            {sku && <span className="text-sm text-muted-foreground">SKU: {sku}</span>}
           </div>
 
           <Separator />
 
-          <div className="space-y-2 text-sm">
-            <div className="flex gap-3">
-              <span className="text-muted-foreground w-24 shrink-0">EAN</span>
-              <span>—</span>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-muted-foreground w-24 shrink-0">Condition</span>
-              <span>—</span>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-muted-foreground w-24 shrink-0">Category</span>
-              <span>—</span>
-            </div>
+          <div className="space-y-1">
+            {formattedPrice && (
+              <p className="text-3xl font-bold text-foreground">{formattedPrice}</p>
+            )}
+            {stock != null && (
+              <p className={`text-sm font-medium ${stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                {stock > 0 ? `${stock} units available` : 'Out of stock'}
+              </p>
+            )}
           </div>
 
-          <p className="text-xs text-muted-foreground pt-2">
-            Full product details will be available once the catalogue integration is complete.
-          </p>
+          <Separator />
+
+          <div className="space-y-0">
+            <SpecRow label="EAN" value={ean} />
+            <SpecRow label="Condition" value={condition} />
+            <SpecRow label="Category" value={subcategory ? `${category} › ${subcategory}` : category} />
+            <SpecRow label="Brand" value={brand} />
+          </div>
         </div>
       </div>
 
       {/* Description & specs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
-        <div className="space-y-3">
-          <h2 className="font-semibold text-foreground">Description</h2>
-          <Separator />
-          <p className="text-sm text-muted-foreground">Coming in Phase 3.</p>
-        </div>
-        <div className="space-y-3">
-          <h2 className="font-semibold text-foreground">Specifications</h2>
-          <Separator />
-          <p className="text-sm text-muted-foreground">Coming in Phase 3.</p>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {description && (
+          <div className="space-y-3">
+            <h2 className="font-semibold text-foreground">Description</h2>
+            <Separator />
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{description}</p>
+          </div>
+        )}
+
+        {Object.keys(specifications).length > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-semibold text-foreground">Specifications</h2>
+            <Separator />
+            <div>
+              {Object.entries(specifications).map(([key, val]) => (
+                <SpecRow key={key} label={key} value={String(val)} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
