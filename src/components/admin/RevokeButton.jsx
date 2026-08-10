@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { UserX } from 'lucide-react'
 
 export default function RevokeButton({ customerId, customerName }) {
   const router = useRouter()
@@ -31,34 +32,36 @@ export default function RevokeButton({ customerId, customerName }) {
   async function handleRevoke() {
     setLoading(true)
     setError(null)
-
     try {
       const res = await fetch(`/api/admin/customers/${customerId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'revoke', notes }),
       })
-
       const data = await res.json()
-
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong. Please try again.')
         setLoading(false)
         return
       }
-
       setOpen(false)
       router.push('/admin/customers')
       router.refresh()
     } catch {
-      setError('Network error. Please check your connection and try again.')
+      setError('Network error. Please try again.')
       setLoading(false)
     }
   }
 
   return (
     <>
-      <Button variant="destructive" onClick={openDialog}>
+      <Button
+        variant="destructive"
+        size="sm"
+        onClick={openDialog}
+        className="flex items-center gap-2"
+      >
+        <UserX className="w-4 h-4" />
         Revoke access
       </Button>
 
@@ -67,8 +70,8 @@ export default function RevokeButton({ customerId, customerName }) {
           <DialogHeader>
             <DialogTitle>Revoke catalogue access</DialogTitle>
             <DialogDescription>
-              This will immediately remove <strong>{customerName}</strong>&apos;s access to the
-              catalogue. They will not be able to view products until access is re-approved.
+              This will immediately remove <strong>{customerName}</strong>&apos;s access to the catalogue.
+              They will be redirected to a restricted page on their next request.
             </DialogDescription>
           </DialogHeader>
 
@@ -79,10 +82,10 @@ export default function RevokeButton({ customerId, customerName }) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="revoke-notes">Reason (optional)</Label>
+            <Label htmlFor="revoke-notes">Reason <span className="text-muted-foreground font-normal">(optional)</span></Label>
             <Textarea
               id="revoke-notes"
-              placeholder="Internal notes about this decision..."
+              placeholder="Internal reason for revocation…"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}

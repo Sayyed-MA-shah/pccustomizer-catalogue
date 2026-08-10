@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import AdminNav from '@/components/admin/AdminNav'
+import AdminSidebar from '@/components/admin/AdminSidebar'
 
 export default async function AdminLayout({ children }) {
   const supabase = await createClient()
@@ -8,7 +8,6 @@ export default async function AdminLayout({ children }) {
 
   if (!user) redirect('/login')
 
-  // Admin identity check uses authenticated client — RLS returns only own catalogue_admins row
   const { data: adminRow } = await supabase
     .from('catalogue_admins')
     .select('user_id')
@@ -18,11 +17,13 @@ export default async function AdminLayout({ children }) {
   if (!adminRow) redirect('/')
 
   return (
-    <div className="min-h-screen bg-background">
-      <AdminNav />
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
-        {children}
-      </main>
+    <div className="flex min-h-screen bg-background">
+      <AdminSidebar email={user.email} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <main className="flex-1 p-4 pt-[4.5rem] lg:pt-4 lg:p-8 max-w-6xl">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
