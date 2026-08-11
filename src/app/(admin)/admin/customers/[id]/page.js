@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StatusBadge from '@/components/shared/StatusBadge'
+import SegmentBadge from '@/components/shared/SegmentBadge'
 import RevokeButton from '@/components/admin/RevokeButton'
+import ChangeSegmentButton from '@/components/admin/ChangeSegmentButton'
 
 function fmt(d, time = false) {
   if (!d) return '—'
@@ -57,7 +59,10 @@ export default async function CustomerDetailPage({ params }) {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>
         </div>
-        <StatusBadge status={profile.status} className="mt-1" />
+        <div className="flex items-center gap-2 mt-1">
+          {profile.customer_segment && <SegmentBadge segment={profile.customer_segment} />}
+          <StatusBadge status={profile.status} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -85,6 +90,10 @@ export default async function CustomerDetailPage({ params }) {
             <Row label="Company" value={profile.company_name} />
             <Row label="VAT number" value={profile.company_vat} />
             <Row label="Access status" value={<StatusBadge status={profile.status} />} />
+            <Row
+              label="Customer type"
+              value={<SegmentBadge segment={profile.customer_segment} />}
+            />
           </CardContent>
         </Card>
       </div>
@@ -116,15 +125,34 @@ export default async function CustomerDetailPage({ params }) {
         </CardContent>
       </Card>
 
+      {/* Admin actions */}
       {profile.status === 'approved' && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">Revoke catalogue access</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              This will immediately remove the customer's access to the catalogue.
-            </p>
+        <div className="space-y-3">
+          {/* Change segment */}
+          <div className="rounded-lg border px-4 py-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Customer type</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Changing the customer type takes effect immediately and affects the prices this
+                customer sees in the catalogue.
+              </p>
+            </div>
+            <ChangeSegmentButton
+              customerId={id}
+              currentSegment={profile.customer_segment}
+            />
           </div>
-          <RevokeButton customerId={id} customerName={profile.full_name || profile.email} />
+
+          {/* Revoke access */}
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Revoke catalogue access</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                This will immediately remove the customer's access to the catalogue.
+              </p>
+            </div>
+            <RevokeButton customerId={id} customerName={profile.full_name || profile.email} />
+          </div>
         </div>
       )}
     </div>

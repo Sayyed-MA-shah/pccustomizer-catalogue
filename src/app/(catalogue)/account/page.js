@@ -2,13 +2,13 @@ import { redirect } from 'next/navigation'
 import { getCustomerProfile } from '@/lib/auth-helpers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
 import { User, Building2, Mail, Phone, ShieldCheck } from 'lucide-react'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
+import SegmentBadge from '@/components/shared/SegmentBadge'
 
 export const metadata = {
-  title: 'My Account — PCCustomizer Trade Catalogue',
+  title: 'My Account — PCCustomizer Catalogue',
 }
 
 function DetailRow({ icon: Icon, label, value }) {
@@ -31,7 +31,7 @@ export default async function AccountPage() {
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       <PageHeader
         title="My Account"
-        subtitle="Your trade account details and access status."
+        subtitle="Your account details and access status."
       />
 
       <Card>
@@ -68,15 +68,24 @@ export default async function AccountPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Access status</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center gap-3">
             <StatusBadge status={profile.status} />
             <span className="text-sm text-muted-foreground">
               {profile.status === 'approved'
-                ? 'Your account has full access to the trade catalogue.'
+                ? 'Your account has full access to the catalogue.'
                 : 'Your account access is currently restricted.'}
             </span>
           </div>
+          {profile.customer_segment && (
+            <>
+              <Separator />
+              <div className="flex items-center gap-3">
+                <SegmentBadge segment={profile.customer_segment} />
+                <span className="text-sm text-muted-foreground">Customer type</span>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

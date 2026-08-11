@@ -1,5 +1,35 @@
 import 'server-only'
 
+// Maps customer_segment → the field name in the API product object
+const SEGMENT_PRICE_FIELD = {
+  retail:    'retail_price',
+  wholesale: 'wholesale_price',
+  trade:     'trade_price',
+}
+
+// Resolves the correct tier price and strips all other pricing fields so
+// client components never receive the other segments' prices.
+// Returns null price when the tier field is absent or null — never falls
+// back to another segment's price.
+export function sanitizeProduct(product, segment) {
+  const tierField = segment ? SEGMENT_PRICE_FIELD[segment] : null
+  // If segment known → use only that tier's price (null if missing for this product)
+  // If segment null → no price (customer not yet assigned)
+  const resolvedPrice = tierField != null
+    ? (product[tierField] ?? null)
+    : null
+
+  const {
+    retail_price,    // stripped
+    wholesale_price, // stripped
+    trade_price,     // stripped
+    price: _legacy,  // replaced by resolvedPrice
+    ...rest
+  } = product
+
+  return { ...rest, price: resolvedPrice }
+}
+
 const BASE_URL = process.env.CATALOGUE_API_BASE_URL
 const TOKEN = process.env.CATALOGUE_API_TOKEN
 

@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import {
   Select,
   SelectContent,
@@ -21,17 +20,17 @@ import {
 } from '@/components/ui/sheet'
 import { SlidersHorizontal, X } from 'lucide-react'
 
-const SORT_OPTIONS = [
-  { value: 'newest',     label: 'Newest' },
-  { value: 'price_asc',  label: 'Price: Low to High' },
-  { value: 'price_desc', label: 'Price: High to Low' },
-  { value: 'title_asc',  label: 'Name: A–Z' },
-  { value: 'title_desc', label: 'Name: Z–A' },
+const ALL_SORT_OPTIONS = [
+  { value: 'newest',     label: 'Newest',              priceSort: false },
+  { value: 'price_asc',  label: 'Price: Low to High',  priceSort: true },
+  { value: 'price_desc', label: 'Price: High to Low',  priceSort: true },
+  { value: 'title_asc',  label: 'Name: A–Z',           priceSort: false },
+  { value: 'title_desc', label: 'Name: Z–A',           priceSort: false },
 ]
 
 const FILTER_PARAMS = ['category', 'brand', 'condition', 'in_stock']
 
-export default function CatalogueFilterBar({ options = {} }) {
+export default function CatalogueFilterBar({ options = {}, canPriceSort = true }) {
   const { categories = [], brands = [], conditions = [] } = options
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -39,7 +38,8 @@ export default function CatalogueFilterBar({ options = {} }) {
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const get = (key) => searchParams.get(key) ?? 'all'
-  const sort = searchParams.get('sort') || 'newest'
+  const rawSort = searchParams.get('sort') || 'newest'
+  const sort = (!canPriceSort && (rawSort === 'price_asc' || rawSort === 'price_desc')) ? 'newest' : rawSort
   const hasFilters = FILTER_PARAMS.some(k => searchParams.has(k))
   const activeFilterCount = FILTER_PARAMS.filter(k => searchParams.has(k)).length
 
@@ -117,7 +117,7 @@ export default function CatalogueFilterBar({ options = {} }) {
               Clear filters
             </button>
           )}
-          <SortSelect value={sort} onChange={v => setParam('sort', v)} />
+          <SortSelect value={sort} onChange={v => setParam('sort', v)} canPriceSort={canPriceSort} />
         </div>
       </div>
 
@@ -159,7 +159,7 @@ export default function CatalogueFilterBar({ options = {} }) {
         </Sheet>
 
         <div className="ml-auto">
-          <SortSelect value={sort} onChange={v => setParam('sort', v)} />
+          <SortSelect value={sort} onChange={v => setParam('sort', v)} canPriceSort={canPriceSort} />
         </div>
       </div>
     </div>
@@ -203,15 +203,23 @@ function FilterSelect({ label, allLabel, value, options, onChange, mobile }) {
   )
 }
 
-function SortSelect({ value, onChange }) {
+function SortSelect({ value, onChange, canPriceSort = true }) {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="h-8 text-sm w-[170px]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="end">
-        {SORT_OPTIONS.map(o => (
-          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+        {ALL_SORT_OPTIONS.map(o => (
+          <SelectItem
+            key={o.value}
+            value={o.value}
+            disabled={o.priceSort && !canPriceSort}
+            className={o.priceSort && !canPriceSort ? 'opacity-40' : ''}
+          >
+            {o.label}
+            {o.priceSort && !canPriceSort ? ' (retail only)' : ''}
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>

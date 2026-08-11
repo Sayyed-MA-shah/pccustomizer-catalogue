@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { AlertTriangle, Package, X } from 'lucide-react'
-import { getProducts, getFilterOptions } from '@/lib/catalogue-api'
+import { getProducts, getFilterOptions, sanitizeProduct } from '@/lib/catalogue-api'
+import { getCustomerProfile } from '@/lib/auth-helpers'
 import ProductCard from '@/components/catalogue/ProductCard'
 import CatalogueSearchBar from '@/components/catalogue/CatalogueSearchBar'
 import CatalogueFilterBar from '@/components/catalogue/CatalogueFilterBar'
@@ -11,6 +12,8 @@ export const revalidate = 0
 export const metadata = {
   title: 'Products — PCCustomizer Catalogue',
 }
+
+const PRICE_SORTS = new Set(['price_asc', 'price_desc'])
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
@@ -41,9 +44,12 @@ function ProductGridSkeleton() {
 
 // ── Product results (server component — runs inside Suspense) ─────────────────
 
-async function ProductResults({ searchParams }) {
+async function ProductResults({ searchParams, segment, canPriceSort }) {
   let result = null
   let fetchError = null
+
+  // Override price sort for non-retail segments — internal API sorts by retail_price only
+  const sort = (!canPriceSort && PRICE_SORTS.has(searchParams.sort)) ? 'newest' : searchParams.sort
 
   try {
     result = await getProducts({
@@ -52,7 +58,7 @@ async function ProductResults({ searchParams }) {
       condition: searchParams.condition,
       brand:     searchParams.brand,
       in_stock:  searchParams.in_stock,
-      sort:      searchParams.sort,
+      sort,
       page:      searchParams.page,
       page_size: '24',
     })
@@ -74,8 +80,9 @@ async function ProductResults({ searchParams }) {
     )
   }
 
-  const products = result?.data ?? result?.products ?? (Array.isArray(result) ? result : [])
-  const total = result?.pagination?.total ?? result?.total ?? products.length
+  const rawProducts = result?.data ?? result?.products ?? (Array.isArray(result) ? result : [])
+  const products = rawProducts.map(p => sanitizeProduct(p, segment))
+  const total = result?.pagination?.total ?? result?.total ?? rawProducts.length
   const hasFilters = ['category', 'brand', 'condition', 'in_stock', 'q'].some(k => searchParams[k])
 
   if (products.length === 0) {
@@ -120,8 +127,14 @@ async function ProductResults({ searchParams }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function ProductsPage({ searchParams }) {
-  const params = await searchParams
-  const filterOptions = await getFilterOptions()
+  const [params, profile, filterOptions] = await Promise.all([
+    searchParams,
+    getCustomerProfile(),
+    getFilterOptions(),
+  ])
+
+  const segment = profile?.customer_segment ?? null
+  const canPriceSort = segment === 'retail'
 
   // Stable key: forces Suspense to remount (show skeleton) whenever filters change
   const paramsKey = new URLSearchParams(
@@ -142,14 +155,14 @@ export default async function ProductsPage({ searchParams }) {
             </p>
           </div>
           <CatalogueSearchBar />
-          <CatalogueFilterBar options={filterOptions} />
+          <CatalogueFilterBar options={filterOptions} canPriceSort={canPriceSort} />
         </div>
       </div>
 
       {/* ── Grid ── */}
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 sm:px-6 py-6">
         <Suspense key={paramsKey} fallback={<ProductGridSkeleton />}>
-          <ProductResults searchParams={params} />
+          <ProductResults searchParams={params} segment={segment} canPriceSort={canPriceSort} />
         </Suspense>
       </div>
     </div>

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
+import SegmentBadge from '@/components/shared/SegmentBadge'
 import EmptyState from '@/components/shared/EmptyState'
 import { ClipboardList } from 'lucide-react'
 
@@ -30,18 +31,31 @@ export default async function RequestsPage({ searchParams }) {
 
   let query = supabase
     .from('access_requests')
-    .select('id, status, business_info, submitted_at, reviewed_at')
+    .select('id, user_id, status, business_info, submitted_at, reviewed_at')
     .order('submitted_at', { ascending: false })
 
   if (activeFilter) query = query.eq('status', activeFilter)
 
   const { data: requests } = await query
 
+  // Batch-fetch customer segments for all request users
+  const userIds = [...new Set((requests || []).map(r => r.user_id))]
+  const { data: profiles } = userIds.length
+    ? await supabase
+        .from('customer_profiles')
+        .select('id, customer_segment')
+        .in('id', userIds)
+    : { data: [] }
+
+  const segmentMap = Object.fromEntries((profiles || []).map(p => [p.id, p.customer_segment]))
+
+  const rows = (requests || []).map(r => ({ ...r, customer_segment: segmentMap[r.user_id] ?? null }))
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Access Requests"
-        subtitle="Review and manage incoming trade account applications."
+        subtitle="Review and manage incoming catalogue account applications."
       />
 
       {/* Filter tabs */}
@@ -65,11 +79,11 @@ export default async function RequestsPage({ searchParams }) {
           )
         })}
         <span className="ml-auto text-xs text-muted-foreground self-center pr-1">
-          {requests?.length ?? 0} result{requests?.length !== 1 ? 's' : ''}
+          {rows.length} result{rows.length !== 1 ? 's' : ''}
         </span>
       </div>
 
-      {requests && requests.length > 0 ? (
+      {rows.length > 0 ? (
         <div className="rounded-lg border bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -80,11 +94,12 @@ export default async function RequestsPage({ searchParams }) {
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Email</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Submitted</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                  <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Type</th>
                   <th className="py-2.5 px-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {requests.map((req) => (
+                {rows.map((req) => (
                   <tr key={req.id} className="hover:bg-muted/20 transition-colors">
                     <td className="py-3 px-4">
                       <p className="font-medium text-foreground">{req.business_info?.full_name || '—'}</p>
@@ -101,6 +116,9 @@ export default async function RequestsPage({ searchParams }) {
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={req.status} />
+                    </td>
+                    <td className="py-3 px-4 hidden md:table-cell">
+                      <SegmentBadge segment={req.customer_segment} />
                     </td>
                     <td className="py-3 px-4 text-right">
                       <Link

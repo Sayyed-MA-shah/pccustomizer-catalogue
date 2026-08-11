@@ -1,6 +1,8 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+const VALID_SEGMENTS = ['retail', 'wholesale', 'trade']
+
 function isValidOrigin(request) {
   const origin = request.headers.get('origin')
   const host = request.headers.get('host')
@@ -24,9 +26,17 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { action, notes } = body
-  if (action !== 'revoke') {
+  const { action, notes, segment } = body
+
+  if (!['revoke', 'change_segment'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  }
+
+  if (action === 'change_segment' && !VALID_SEGMENTS.includes(segment)) {
+    return NextResponse.json(
+      { error: 'segment must be retail, wholesale, or trade' },
+      { status: 400 }
+    )
   }
 
   // Verify authenticated session
@@ -47,20 +57,33 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { id } = await params  // id is the customer's user_id (customer_profiles.id)
+  const { id } = await params
 
   // Escalate to service role only after admin identity confirmed
   const serviceClient = await createServiceClient()
 
-  const { error } = await serviceClient.rpc('revoke_customer_access', {
-    p_user_id: id,
-    p_reviewer_id: user.id,
-    p_notes: notes?.trim() || null,
-  })
+  if (action === 'revoke') {
+    const { error } = await serviceClient.rpc('revoke_customer_access', {
+      p_user_id:     id,
+      p_reviewer_id: user.id,
+      p_notes:       notes?.trim() || null,
+    })
 
-  if (error) {
-    console.error(`[admin/customers/${id}] revoke_customer_access:`, error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error(`[admin/customers/${id}] revoke_customer_access:`, error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+  } else {
+    const { error } = await serviceClient.rpc('change_customer_segment', {
+      p_user_id:  id,
+      p_segment:  segment,
+      p_admin_id: user.id,
+    })
+
+    if (error) {
+      console.error(`[admin/customers/${id}] change_customer_segment:`, error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ success: true })

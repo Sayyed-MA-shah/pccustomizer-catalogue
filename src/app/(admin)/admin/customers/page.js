@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
+import SegmentBadge from '@/components/shared/SegmentBadge'
 import EmptyState from '@/components/shared/EmptyState'
 import { Users } from 'lucide-react'
 
@@ -26,7 +27,7 @@ export default async function CustomersPage({ searchParams }) {
 
   const { data: customers } = await supabase
     .from('customer_profiles')
-    .select('id, email, full_name, company_name, phone, status, created_at')
+    .select('id, email, full_name, company_name, phone, status, customer_segment, created_at')
     .eq('status', filter)
     .order('created_at', { ascending: false })
 
@@ -34,7 +35,7 @@ export default async function CustomersPage({ searchParams }) {
     <div className="space-y-6">
       <PageHeader
         title="Customers"
-        subtitle="Manage approved trade customer accounts."
+        subtitle="Manage approved catalogue customer accounts."
       />
 
       <div className="flex gap-1.5 flex-wrap border-b pb-px">
@@ -65,9 +66,9 @@ export default async function CustomersPage({ searchParams }) {
                 <tr className="border-b bg-muted/40">
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Email</th>
-                  <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Phone</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Since</th>
-                  <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                  <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
+                  <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Status</th>
                   <th className="py-2.5 px-4"></th>
                 </tr>
               </thead>
@@ -76,15 +77,16 @@ export default async function CustomersPage({ searchParams }) {
                   <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                     <td className="py-3 px-4">
                       <p className="font-medium text-foreground">{c.full_name || '—'}</p>
-                      <p className="text-xs text-muted-foreground md:hidden">{c.email}</p>
                       <p className="text-xs text-muted-foreground">{c.company_name}</p>
                     </td>
                     <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">{c.email}</td>
-                    <td className="py-3 px-4 text-muted-foreground hidden lg:table-cell">{c.phone || '—'}</td>
                     <td className="py-3 px-4 text-muted-foreground hidden sm:table-cell whitespace-nowrap">
                       {formatDate(c.created_at)}
                     </td>
                     <td className="py-3 px-4">
+                      <SegmentBadge segment={c.customer_segment} />
+                    </td>
+                    <td className="py-3 px-4 hidden lg:table-cell">
                       <StatusBadge status={c.status} />
                     </td>
                     <td className="py-3 px-4 text-right">

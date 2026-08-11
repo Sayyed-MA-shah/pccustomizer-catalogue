@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import StatusBadge from '@/components/shared/StatusBadge'
+import SegmentBadge from '@/components/shared/SegmentBadge'
 import ReviewPanel from '@/components/admin/ReviewPanel'
 
 function fmt(d, time = false) {
@@ -28,15 +29,17 @@ export default async function ReviewRequestPage({ params }) {
   const { id } = await params
   const supabase = await createServiceClient()
 
-  const [{ data: request }, ] = await Promise.all([
-    supabase.from('access_requests').select('*').eq('id', id).single(),
-  ])
+  const { data: request } = await supabase
+    .from('access_requests')
+    .select('*')
+    .eq('id', id)
+    .single()
 
   if (!request) notFound()
 
   const { data: profile } = await supabase
     .from('customer_profiles')
-    .select('status')
+    .select('status, customer_segment')
     .eq('id', request.user_id)
     .single()
 
@@ -61,7 +64,10 @@ export default async function ReviewRequestPage({ params }) {
             {request.business_info?.company_name}
           </p>
         </div>
-        <StatusBadge status={request.status} className="mt-1" />
+        <div className="flex items-center gap-2 mt-1">
+          {profile?.customer_segment && <SegmentBadge segment={profile.customer_segment} />}
+          <StatusBadge status={request.status} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -101,6 +107,9 @@ export default async function ReviewRequestPage({ params }) {
           <Row label="Submitted" value={fmt(request.submitted_at, true)} />
           <Row label="Request status" value={<StatusBadge status={request.status} />} />
           {profile && <Row label="Current access" value={<StatusBadge status={profile.status} />} />}
+          {profile?.customer_segment && (
+            <Row label="Customer type" value={<SegmentBadge segment={profile.customer_segment} />} />
+          )}
           {request.reviewed_at && <Row label="Reviewed" value={fmt(request.reviewed_at, true)} />}
           {request.notes && <Row label="Notes" value={request.notes} />}
         </CardContent>

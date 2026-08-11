@@ -1,12 +1,13 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { LogOut, User } from 'lucide-react'
 
-export default function UserMenuButton({ name, company }) {
+const SEGMENT_LABELS = { retail: 'Retail', wholesale: 'Wholesale', trade: 'Trade' }
+
+export default function UserMenuButton({ name, company, segment }) {
   const initials = name
     ? name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
     : 'U'
@@ -27,6 +28,11 @@ export default function UserMenuButton({ name, company }) {
         <div className="px-2 py-1.5">
           <p className="text-xs font-medium text-foreground truncate">{name}</p>
           {company && <p className="text-xs text-muted-foreground truncate">{company}</p>}
+          {segment && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {SEGMENT_LABELS[segment] ?? segment} account
+            </p>
+          )}
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>

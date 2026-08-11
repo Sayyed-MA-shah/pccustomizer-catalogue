@@ -3,7 +3,8 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Package } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
-import { getProduct } from '@/lib/catalogue-api'
+import { getProduct, sanitizeProduct } from '@/lib/catalogue-api'
+import { getCustomerProfile } from '@/lib/auth-helpers'
 
 export const revalidate = 0
 
@@ -25,14 +26,18 @@ function SpecRow({ label, value }) {
 export default async function ProductDetailPage({ params }) {
   const { id } = await params
 
-  let product = null
+  let rawProduct = null
   try {
-    product = await getProduct(id)
+    rawProduct = await getProduct(id)
   } catch {
     notFound()
   }
 
-  if (!product) notFound()
+  if (!rawProduct) notFound()
+
+  const profile = await getCustomerProfile()
+  const segment = profile?.customer_segment ?? null
+  const product = sanitizeProduct(rawProduct, segment)
 
   const {
     title,
@@ -120,8 +125,10 @@ export default async function ProductDetailPage({ params }) {
           <Separator />
 
           <div className="space-y-1">
-            {formattedPrice && (
+            {formattedPrice ? (
               <p className="text-3xl font-bold text-foreground">{formattedPrice}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Price unavailable</p>
             )}
             {stock != null && (
               <p className={`text-sm font-medium ${stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>

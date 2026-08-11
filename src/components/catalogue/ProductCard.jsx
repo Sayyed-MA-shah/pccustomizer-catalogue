@@ -85,8 +85,10 @@ export default function ProductCard({ product }) {
 
         {/* Footer */}
         <div className="pt-3 border-t mt-1 space-y-1">
-          {formattedPrice && (
+          {formattedPrice ? (
             <p className="text-base font-bold text-foreground">{formattedPrice}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">Price unavailable</p>
           )}
           {stockLabel && (
             <p className={`text-xs font-medium ${stockColor}`}>{stockLabel}</p>

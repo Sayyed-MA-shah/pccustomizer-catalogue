@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import UserMenuButton from './UserMenuButton'
+import SegmentBadge from '@/components/shared/SegmentBadge'
 
 const navLinks = [
   { href: '/products', label: 'Products' },
@@ -42,9 +43,15 @@ export default function CatalogueHeader({ profile, currentPath }) {
 
           {/* Right side */}
           <div className="ml-auto flex items-center gap-2">
+            {profile?.customer_segment && (
+              <span className="hidden sm:block">
+                <SegmentBadge segment={profile.customer_segment} />
+              </span>
+            )}
             <UserMenuButton
               name={profile?.full_name || ''}
               company={profile?.company_name || ''}
+              segment={profile?.customer_segment || null}
             />
           </div>
         </div>
