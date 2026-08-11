@@ -1,37 +1,45 @@
 import { Suspense } from 'react'
-import { Search, Package } from 'lucide-react'
-import { getProducts } from '@/lib/catalogue-api'
+import { AlertTriangle, Package, X } from 'lucide-react'
+import { getProducts, getFilterOptions } from '@/lib/catalogue-api'
 import ProductCard from '@/components/catalogue/ProductCard'
-import ProductFilters from '@/components/catalogue/ProductFilters'
-import FilterDrawer from '@/components/catalogue/FilterDrawer'
-import EmptyState from '@/components/shared/EmptyState'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import CatalogueSearchBar from '@/components/catalogue/CatalogueSearchBar'
+import CatalogueFilterBar from '@/components/catalogue/CatalogueFilterBar'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export const revalidate = 0
 
 export const metadata = {
-  title: 'Products — PCCustomizer Trade Catalogue',
+  title: 'Products — PCCustomizer Catalogue',
 }
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function ProductGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="rounded-lg border bg-card overflow-hidden">
-          <Skeleton className="aspect-[4/3] w-full" />
-          <div className="p-4 space-y-2">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-6 w-20 mt-2" />
-            <Skeleton className="h-8 w-full mt-2" />
+    <div className="space-y-4">
+      <Skeleton className="h-4 w-28" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="flex flex-col rounded-md border bg-card overflow-hidden">
+            <Skeleton className="aspect-[4/3] w-full" />
+            <div className="p-4 space-y-2.5">
+              <Skeleton className="h-2.5 w-12" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <div className="pt-2 border-t mt-2 space-y-1.5">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-8 w-full mt-1" />
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
+
+// ── Product results (server component — runs inside Suspense) ─────────────────
 
 async function ProductResults({ searchParams }) {
   let result = null
@@ -54,96 +62,95 @@ async function ProductResults({ searchParams }) {
 
   if (fetchError) {
     return (
-      <EmptyState
-        icon={Package}
-        title="Unable to load products"
-        description="There was a problem connecting to the catalogue. Please try again shortly."
-      />
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+        </div>
+        <h3 className="text-sm font-medium text-foreground">Unable to load products</h3>
+        <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+          There was a problem connecting to the catalogue. Please try refreshing the page.
+        </p>
+      </div>
     )
   }
 
   const products = result?.data ?? result?.products ?? (Array.isArray(result) ? result : [])
   const total = result?.pagination?.total ?? result?.total ?? products.length
+  const hasFilters = ['category', 'brand', 'condition', 'in_stock', 'q'].some(k => searchParams[k])
 
   if (products.length === 0) {
     return (
-      <EmptyState
-        icon={Package}
-        title="No products found"
-        description="Try adjusting your filters or search term."
-      />
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+          <Package className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h3 className="text-sm font-medium text-foreground">No products found</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {hasFilters
+            ? 'No products match your current filters. Try adjusting your search or filters.'
+            : 'No products are available in the catalogue yet.'}
+        </p>
+        {hasFilters && (
+          <a
+            href="/products"
+            className="mt-4 flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Clear all filters
+          </a>
+        )}
+      </div>
     )
   }
 
   return (
-    <>
+    <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         {total} product{total !== 1 ? 's' : ''}
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {products.map((product) => (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {products.map(product => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
-    </>
+    </div>
   )
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default async function ProductsPage({ searchParams }) {
   const params = await searchParams
+  const filterOptions = await getFilterOptions()
+
+  // Stable key: forces Suspense to remount (show skeleton) whenever filters change
+  const paramsKey = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v != null)
+    )
+  ).toString()
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Page header */}
-      <div className="border-b bg-background px-4 sm:px-6 py-4">
-        <div className="max-w-[1400px] mx-auto space-y-3">
+      {/* ── Page header ── */}
+      <div className="border-b bg-background">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-5 space-y-4">
           <div>
             <h1 className="text-xl font-bold text-foreground">Product Catalogue</h1>
-            <p className="text-sm text-muted-foreground">
-              Browse the full range of trade products available to your account.
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Browse products available to your account.
             </p>
           </div>
-          <form method="GET" action="/products" className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              name="q"
-              defaultValue={params.q || ''}
-              placeholder="Search products, brands, SKUs…"
-              className="w-full pl-9 pr-4 h-9 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </form>
+          <CatalogueSearchBar />
+          <CatalogueFilterBar options={filterOptions} />
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-6 py-6 gap-6">
-        {/* Desktop filter sidebar */}
-        <ProductFilters className="hidden lg:block w-48 xl:w-56 shrink-0 pt-0.5" />
-
-        {/* Main content */}
-        <div className="flex-1 min-w-0 space-y-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <FilterDrawer />
-            <div className="ml-auto">
-              <Select defaultValue={params.sort || 'newest'}>
-                <SelectTrigger className="w-[160px] h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest first</SelectItem>
-                  <SelectItem value="price_asc">Price: Low to High</SelectItem>
-                  <SelectItem value="price_desc">Price: High to Low</SelectItem>
-                  <SelectItem value="title_asc">Name: A–Z</SelectItem>
-                  <SelectItem value="title_desc">Name: Z–A</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Suspense fallback={<ProductGridSkeleton />}>
-            <ProductResults searchParams={params} />
-          </Suspense>
-        </div>
+      {/* ── Grid ── */}
+      <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 sm:px-6 py-6">
+        <Suspense key={paramsKey} fallback={<ProductGridSkeleton />}>
+          <ProductResults searchParams={params} />
+        </Suspense>
       </div>
     </div>
   )

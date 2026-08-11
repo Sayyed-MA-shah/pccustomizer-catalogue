@@ -18,7 +18,7 @@ export default function CatalogueHeader({ profile, currentPath }) {
               <span className="text-primary-foreground text-xs font-bold">PC</span>
             </div>
             <span className="font-semibold text-sm text-foreground hidden sm:block">
-              PCCustomizer <span className="text-muted-foreground font-normal">Trade</span>
+              PCCustomizer
             </span>
           </Link>
 

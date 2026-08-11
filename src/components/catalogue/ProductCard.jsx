@@ -1,14 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import StatusBadge from '@/components/shared/StatusBadge'
 import { Package } from 'lucide-react'
-
-function conditionStatus(condition) {
-  if (!condition) return null
-  const map = { 'Grade A': 'approved', 'Grade B': 'pending', 'Grade C': 'revoked', 'New': 'approved' }
-  return map[condition] ?? null
-}
 
 export default function ProductCard({ product }) {
   const {
@@ -22,6 +14,7 @@ export default function ProductCard({ product }) {
   } = product
 
   const stock = product.stock ?? product.stock_quantity ?? null
+  const inStock = product.in_stock ?? (stock != null ? stock > 0 : null)
   const primaryImage = images?.[0]?.url ?? null
   const primaryAlt = images?.[0]?.alt_text || title || 'Product image'
 
@@ -29,61 +22,82 @@ export default function ProductCard({ product }) {
     ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(price)
     : null
 
+  const stockLabel = stock != null
+    ? stock > 0 ? `${stock} in stock` : 'Out of stock'
+    : inStock != null
+      ? inStock ? 'In stock' : 'Out of stock'
+      : null
+
+  const stockColor = (stock != null ? stock > 0 : inStock)
+    ? 'text-emerald-600'
+    : 'text-red-500'
+
   return (
-    <div className="group rounded-lg border bg-card flex flex-col overflow-hidden hover:border-primary/50 hover:shadow-md transition-all">
+    <Link
+      href={`/products/${id}`}
+      aria-label={`View details for ${title || 'product'}`}
+      className="group flex flex-col rounded-md border bg-card overflow-hidden hover:border-foreground/20 hover:shadow-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
       {/* Image */}
-      <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+      <div className="relative aspect-[4/3] bg-muted shrink-0 overflow-hidden">
         {primaryImage ? (
           <Image
             src={primaryImage}
             alt={primaryAlt}
             fill
-            className="object-contain p-3 group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-contain p-3 transition-transform duration-200 group-hover:scale-[1.02]"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-            <Package className="w-10 h-10 text-muted-foreground/40" />
-            <span className="text-xs text-muted-foreground/60">No image</span>
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground/30">
+            <Package className="h-10 w-10" />
+            <span className="text-xs">No image</span>
           </div>
         )}
         {condition && (
-          <div className="absolute top-2 left-2">
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-background/90 border text-foreground">
-              {condition}
-            </span>
-          </div>
+          <span className="absolute top-2 left-2 rounded bg-background/90 border px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+            {condition}
+          </span>
         )}
       </div>
 
       {/* Content */}
-      <div className="flex flex-col flex-1 p-4 gap-3">
-        <div className="flex-1 space-y-1">
-          {brand && (
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{brand}</p>
-          )}
-          <h3 className="font-semibold text-sm text-foreground leading-snug line-clamp-2">
-            {title || 'Untitled Product'}
-          </h3>
-          {sku && (
-            <p className="text-xs text-muted-foreground">SKU: {sku}</p>
-          )}
-        </div>
+      <div className="flex flex-1 flex-col p-4 gap-1.5">
+        {/* Brand */}
+        {brand && (
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            {brand}
+          </p>
+        )}
 
-        <div className="space-y-2">
+        {/* Title — two-line clamp for consistent card height */}
+        <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2 min-h-[2.5rem]">
+          {title || 'Untitled Product'}
+        </h3>
+
+        {/* SKU */}
+        {sku && (
+          <p className="text-[11px] text-muted-foreground">SKU: {sku}</p>
+        )}
+
+        {/* Spacer — pushes price+stock+button to bottom */}
+        <div className="flex-1" />
+
+        {/* Footer */}
+        <div className="pt-3 border-t mt-1 space-y-1">
           {formattedPrice && (
-            <p className="text-lg font-bold text-foreground">{formattedPrice}</p>
+            <p className="text-base font-bold text-foreground">{formattedPrice}</p>
           )}
-          {stock != null && (
-            <p className={`text-xs font-medium ${stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              {stock > 0 ? `${stock} in stock` : 'Out of stock'}
-            </p>
+          {stockLabel && (
+            <p className={`text-xs font-medium ${stockColor}`}>{stockLabel}</p>
           )}
-          <Button asChild size="sm" variant="outline" className="w-full">
-            <Link href={`/products/${id}`}>View details</Link>
-          </Button>
+          <div className="pt-1">
+            <span className="flex h-8 w-full items-center justify-center rounded border border-input bg-background text-xs font-medium text-foreground transition-colors group-hover:bg-muted">
+              View details
+            </span>
+          </div>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }

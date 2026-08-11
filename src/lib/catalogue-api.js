@@ -52,3 +52,21 @@ export async function getProduct(id) {
   const result = await catalogueFetch(`/products/${encodeURIComponent(id)}`)
   return result?.data ?? result
 }
+
+// Derives available filter options from an unfiltered product sample.
+// NOTE: Reflects values in the first MAX_PAGE_SIZE (50) products only.
+// A dedicated /filters or /facets API endpoint would provide complete coverage
+// across the full catalogue without this page-size constraint.
+export async function getFilterOptions() {
+  try {
+    const result = await catalogueFetch(`/products?page_size=${MAX_PAGE_SIZE}`)
+    const products = result?.data ?? []
+    return {
+      categories: [...new Set(products.map(p => p.category).filter(Boolean))].sort(),
+      brands:     [...new Set(products.map(p => p.brand).filter(Boolean))].sort(),
+      conditions: [...new Set(products.map(p => p.condition).filter(Boolean))].sort(),
+    }
+  } catch {
+    return { categories: [], brands: [], conditions: [] }
+  }
+}
