@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getCustomerProfile } from '@/lib/auth-helpers'
 import CatalogueHeader from '@/components/catalogue/CatalogueHeader'
-import CartProvider from '@/lib/cart-context'
+import { CartProvider } from '@/lib/cart-context'
 
 export default async function CatalogueLayout({ children }) {
   const profile = await getCustomerProfile()
