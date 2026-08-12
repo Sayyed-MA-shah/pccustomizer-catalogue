@@ -5,13 +5,14 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { Menu, LayoutDashboard, Users, ClipboardList, LogOut } from 'lucide-react'
+import { Menu, LayoutDashboard, Users, ClipboardList, ShoppingBag, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/admin/requests', icon: ClipboardList, label: 'Access Requests' },
   { href: '/admin/customers', icon: Users, label: 'Customers' },
+  { href: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
 ]
 
 function NavLink({ item, pathname, onClick }) {

@@ -29,7 +29,10 @@ export async function proxy(request) {
   const { pathname } = request.nextUrl
   const isAdminPath = pathname.startsWith('/admin')
   const isCataloguePath =
-    pathname.startsWith('/products') || pathname.startsWith('/account')
+    pathname.startsWith('/products') ||
+    pathname.startsWith('/account') ||
+    pathname.startsWith('/cart') ||
+    pathname.startsWith('/orders')
 
   // Unauthenticated users cannot access protected paths
   if ((isAdminPath || isCataloguePath) && !user) {
@@ -68,5 +71,5 @@ export async function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/products/:path*', '/account/:path*', '/admin/:path*'],
+  matcher: ['/products/:path*', '/account/:path*', '/cart', '/cart/:path*', '/orders', '/orders/:path*', '/admin/:path*'],
 }

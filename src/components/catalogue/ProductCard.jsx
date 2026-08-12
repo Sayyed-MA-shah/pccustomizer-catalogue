@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Package } from 'lucide-react'
+import QuickAddButton from './QuickAddButton'
 
 export default function ProductCard({ product }) {
   const {
@@ -93,10 +94,14 @@ export default function ProductCard({ product }) {
           {stockLabel && (
             <p className={`text-xs font-medium ${stockColor}`}>{stockLabel}</p>
           )}
-          <div className="pt-1">
-            <span className="flex h-8 w-full items-center justify-center rounded border border-input bg-background text-xs font-medium text-foreground transition-colors group-hover:bg-muted">
+          <div className="pt-1 flex gap-1.5">
+            <span className="flex flex-1 h-8 items-center justify-center rounded border border-input bg-background text-xs font-medium text-foreground transition-colors group-hover:bg-muted">
               View details
             </span>
+            <QuickAddButton
+              product={{ id, title, sku, imageUrl: primaryImage }}
+              disabled={inStock === false}
+            />
           </div>
         </div>
       </div>

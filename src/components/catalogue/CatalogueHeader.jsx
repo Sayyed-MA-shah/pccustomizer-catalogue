@@ -2,9 +2,11 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import UserMenuButton from './UserMenuButton'
 import SegmentBadge from '@/components/shared/SegmentBadge'
+import CartNavItem from './CartNavItem'
 
 const navLinks = [
   { href: '/products', label: 'Products' },
+  { href: '/orders', label: 'Orders' },
   { href: '/account', label: 'Account' },
 ]
 
@@ -48,6 +50,7 @@ export default function CatalogueHeader({ profile, currentPath }) {
                 <SegmentBadge segment={profile.customer_segment} />
               </span>
             )}
+            <CartNavItem />
             <UserMenuButton
               name={profile?.full_name || ''}
               company={profile?.company_name || ''}

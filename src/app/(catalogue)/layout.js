@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getCustomerProfile } from '@/lib/auth-helpers'
 import CatalogueHeader from '@/components/catalogue/CatalogueHeader'
+import CartProvider from '@/lib/cart-context'
 
 export default async function CatalogueLayout({ children }) {
   const profile = await getCustomerProfile()
@@ -19,11 +20,13 @@ export default async function CatalogueLayout({ children }) {
   const pathname = headersList.get('x-pathname') || ''
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <CatalogueHeader profile={profile} currentPath={pathname} />
-      <div className="flex-1 flex flex-col">
-        {children}
+    <CartProvider>
+      <div className="min-h-screen bg-background flex flex-col">
+        <CatalogueHeader profile={profile} currentPath={pathname} />
+        <div className="flex-1 flex flex-col">
+          {children}
+        </div>
       </div>
-    </div>
+    </CartProvider>
   )
 }

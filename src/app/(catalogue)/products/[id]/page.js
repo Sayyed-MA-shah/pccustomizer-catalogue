@@ -5,6 +5,7 @@ import { ArrowLeft, Package } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { getProduct, sanitizeProduct } from '@/lib/catalogue-api'
 import { getCustomerProfile } from '@/lib/auth-helpers'
+import AddToCartButton from '@/components/catalogue/AddToCartButton'
 
 export const revalidate = 0
 
@@ -136,6 +137,11 @@ export default async function ProductDetailPage({ params }) {
               </p>
             )}
           </div>
+
+          <AddToCartButton
+            product={{ id, title, sku, imageUrl: primaryImage }}
+            maxStock={stock ?? undefined}
+          />
 
           <Separator />
 
