@@ -27,18 +27,38 @@ export async function proxy(request) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isAdminPath = pathname.startsWith('/admin')
-  const isCataloguePath =
+
+  const isAdminLoginPath = pathname === '/admin/login'
+  const isAdminPath      = pathname.startsWith('/admin') && !isAdminLoginPath
+  const isCataloguePath  =
     pathname.startsWith('/products') ||
-    pathname.startsWith('/account') ||
-    pathname.startsWith('/cart') ||
+    pathname.startsWith('/account')  ||
+    pathname.startsWith('/cart')     ||
     pathname.startsWith('/orders')
 
-  // Unauthenticated users cannot access protected paths
-  if ((isAdminPath || isCataloguePath) && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // ── /admin/login ──────────────────────────────────────────────────────────
+  // Public page — anyone can visit, but authenticated admins get sent to /admin
+  if (isAdminLoginPath) {
+    if (user) {
+      const { data: adminRow } = await supabase
+        .from('catalogue_admins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (adminRow) {
+        return NextResponse.redirect(new URL('/admin', request.url))
+      }
+    }
+    return supabaseResponse
   }
 
+  // ── Unauthenticated — redirect to appropriate login ────────────────────────
+  if (!user) {
+    if (isAdminPath)     return NextResponse.redirect(new URL('/admin/login', request.url))
+    if (isCataloguePath) return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // ── Customer paths — verify approved status ────────────────────────────────
   if (user && isCataloguePath) {
     const { data: profile } = await supabase
       .from('customer_profiles')
@@ -54,8 +74,9 @@ export async function proxy(request) {
     }
   }
 
+  // ── Admin paths — verify admin role ───────────────────────────────────────
   if (user && isAdminPath) {
-    // Admin check uses authenticated client — RLS returns only the user's own row
+    // Authenticated client — RLS returns only the user's own catalogue_admins row
     const { data: adminRow } = await supabase
       .from('catalogue_admins')
       .select('user_id')
@@ -71,5 +92,13 @@ export async function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/products/:path*', '/account/:path*', '/cart', '/cart/:path*', '/orders', '/orders/:path*', '/admin/:path*'],
+  matcher: [
+    '/products/:path*',
+    '/account/:path*',
+    '/cart',
+    '/cart/:path*',
+    '/orders',
+    '/orders/:path*',
+    '/admin/:path*',
+  ],
 }

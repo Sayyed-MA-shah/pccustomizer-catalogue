@@ -29,11 +29,16 @@ export default function LoginPage() {
         <CardContent>
           <LoginForm />
         </CardContent>
-        <CardFooter className="flex flex-col gap-2 pt-0">
+        <CardFooter className="flex flex-col gap-3 pt-0">
           <p className="text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
             <Link href="/register" className="underline underline-offset-4 hover:text-foreground">
               Request trade access
+            </Link>
+          </p>
+          <p className="text-xs text-muted-foreground/50">
+            <Link href="/admin/login" className="hover:text-muted-foreground transition-colors">
+              Admin login
             </Link>
           </p>
         </CardFooter>

@@ -3,29 +3,40 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
 const CartContext = createContext(null)
-const STORAGE_KEY = 'pcc_cart'
 
 // Cart items: { id, title, sku, imageUrl, quantity }
-// Prices are NEVER stored here — resolved server-side on submission.
+// Prices are NEVER stored — resolved server-side at order submission.
+// Storage is scoped per user: 'pcc_cart:<userId>'
 
-export function CartProvider({ children }) {
-  const [items, setItems] = useState([])
+function storageKey(userId) {
+  return userId ? `pcc_cart:${userId}` : null
+}
+
+export function CartProvider({ userId, children }) {
+  const [items, setItems]       = useState([])
   const [hydrated, setHydrated] = useState(false)
 
+  // Re-load cart whenever userId changes (covers login as different user)
   useEffect(() => {
+    setHydrated(false)
+    setItems([])
+    const key = storageKey(userId)
+    if (!key) { setHydrated(true); return }
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      const raw = localStorage.getItem(key)
       if (raw) setItems(JSON.parse(raw))
     } catch {}
     setHydrated(true)
-  }, [])
+  }, [userId])
 
+  // Persist to the user-scoped key whenever items change
   useEffect(() => {
-    if (!hydrated) return
+    const key = storageKey(userId)
+    if (!hydrated || !key) return
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+      localStorage.setItem(key, JSON.stringify(items))
     } catch {}
-  }, [items, hydrated])
+  }, [items, hydrated, userId])
 
   const addItem = useCallback((product, quantity = 1) => {
     setItems(prev => {
@@ -35,7 +46,13 @@ export function CartProvider({ children }) {
         next[idx] = { ...next[idx], quantity: next[idx].quantity + quantity }
         return next
       }
-      return [...prev, { id: product.id, title: product.title, sku: product.sku ?? null, imageUrl: product.imageUrl ?? null, quantity }]
+      return [...prev, {
+        id:       product.id,
+        title:    product.title,
+        sku:      product.sku      ?? null,
+        imageUrl: product.imageUrl ?? null,
+        quantity,
+      }]
     })
   }, [])
 

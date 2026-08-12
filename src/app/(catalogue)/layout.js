@@ -20,7 +20,7 @@ export default async function CatalogueLayout({ children }) {
   const pathname = headersList.get('x-pathname') || ''
 
   return (
-    <CartProvider>
+    <CartProvider userId={profile.id}>
       <div className="min-h-screen bg-background flex flex-col">
         <CatalogueHeader profile={profile} currentPath={pathname} />
         <div className="flex-1 flex flex-col">
