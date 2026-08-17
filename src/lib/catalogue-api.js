@@ -7,22 +7,25 @@ const SEGMENT_PRICE_FIELD = {
   trade:     'trade_price',
 }
 
-// Resolves the correct tier price and strips all other pricing fields so
-// client components never receive the other segments' prices.
-// Returns null price when the tier field is absent or null — never falls
-// back to another segment's price.
+// Resolves the correct tier price and strips all raw pricing fields so
+// client components never receive prices they shouldn't see.
+// segment = 'website' → public website_price (guests and unapproved users)
+// segment = 'retail'|'wholesale'|'trade' → their tier price
+// segment = null → no price shown
 export function sanitizeProduct(product, segment) {
-  const tierField = segment ? SEGMENT_PRICE_FIELD[segment] : null
-  // If segment known → use only that tier's price (null if missing for this product)
-  // If segment null → no price (customer not yet assigned)
-  const resolvedPrice = tierField != null
-    ? (product[tierField] ?? null)
-    : null
+  let resolvedPrice
+  if (segment === 'website') {
+    resolvedPrice = product.website_price ?? null
+  } else {
+    const tierField = segment ? SEGMENT_PRICE_FIELD[segment] : null
+    resolvedPrice = tierField != null ? (product[tierField] ?? null) : null
+  }
 
   const {
     retail_price,    // stripped
     wholesale_price, // stripped
     trade_price,     // stripped
+    website_price,   // stripped
     price: _legacy,  // replaced by resolvedPrice
     ...rest
   } = product
@@ -34,6 +37,7 @@ const BASE_URL = process.env.CATALOGUE_API_BASE_URL
 const TOKEN = process.env.CATALOGUE_API_TOKEN
 
 const ALLOWED_SORT = ['newest', 'title_asc', 'title_desc', 'price_asc', 'price_desc']
+const ALLOWED_PRICE_CONTEXT = ['website', 'retail', 'wholesale', 'trade']
 const MAX_PAGE_SIZE = 50
 
 function buildSearchParams(input) {
@@ -53,6 +57,9 @@ function buildSearchParams(input) {
   if (input.sku) params.set('sku', String(input.sku).slice(0, 100))
   if (input.in_stock === 'true' || input.in_stock === true) params.set('in_stock', 'true')
   if (input.sort && ALLOWED_SORT.includes(input.sort)) params.set('sort', input.sort)
+  if (input.price_context && ALLOWED_PRICE_CONTEXT.includes(input.price_context)) {
+    params.set('price_context', input.price_context)
+  }
 
   return params
 }

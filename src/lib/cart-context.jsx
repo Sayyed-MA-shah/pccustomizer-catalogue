@@ -9,7 +9,7 @@ const CartContext = createContext(null)
 // Storage is scoped per user: 'pcc_cart:<userId>'
 
 function storageKey(userId) {
-  return userId ? `pcc_cart:${userId}` : null
+  return userId ? `pcc_cart:${userId}` : 'pcc_cart:guest'
 }
 
 export function CartProvider({ userId, children }) {

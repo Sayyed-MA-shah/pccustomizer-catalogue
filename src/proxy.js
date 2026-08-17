@@ -30,14 +30,15 @@ export async function proxy(request) {
 
   const isAdminLoginPath = pathname === '/admin/login'
   const isAdminPath      = pathname.startsWith('/admin') && !isAdminLoginPath
-  const isCataloguePath  =
-    pathname.startsWith('/products') ||
-    pathname.startsWith('/account')  ||
-    pathname.startsWith('/cart')     ||
-    pathname.startsWith('/orders')
+
+  // Paths that require an authenticated, approved customer account
+  const isGuestOrderPath = pathname.startsWith('/orders/guest/')
+  const requiresApprovedAuth =
+    pathname.startsWith('/account') ||
+    pathname === '/orders' ||
+    (pathname.startsWith('/orders/') && !isGuestOrderPath)
 
   // ── /admin/login ──────────────────────────────────────────────────────────
-  // Public page — anyone can visit, but authenticated admins get sent to /admin
   if (isAdminLoginPath) {
     if (user) {
       const { data: adminRow } = await supabase
@@ -52,20 +53,26 @@ export async function proxy(request) {
     return supabaseResponse
   }
 
-  // ── Unauthenticated — redirect to appropriate login ────────────────────────
-  if (!user) {
-    if (isAdminPath)     return NextResponse.redirect(new URL('/admin/login', request.url))
-    if (isCataloguePath) return NextResponse.redirect(new URL('/login', request.url))
+  // ── Admin paths — require admin role ──────────────────────────────────────
+  if (isAdminPath) {
+    if (!user) return NextResponse.redirect(new URL('/admin/login', request.url))
+    const { data: adminRow } = await supabase
+      .from('catalogue_admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!adminRow) return NextResponse.redirect(new URL('/', request.url))
+    return supabaseResponse
   }
 
-  // ── Customer paths — verify approved status ────────────────────────────────
-  if (user && isCataloguePath) {
+  // ── Account / orders — require authenticated approved customer ─────────────
+  if (requiresApprovedAuth) {
+    if (!user) return NextResponse.redirect(new URL('/login', request.url))
     const { data: profile } = await supabase
       .from('customer_profiles')
       .select('status')
       .eq('id', user.id)
       .single()
-
     if (!profile || profile.status !== 'approved') {
       const dest = profile?.status === 'rejected' || profile?.status === 'revoked'
         ? '/rejected'
@@ -74,31 +81,24 @@ export async function proxy(request) {
     }
   }
 
-  // ── Admin paths — verify admin role ───────────────────────────────────────
-  if (user && isAdminPath) {
-    // Authenticated client — RLS returns only the user's own catalogue_admins row
-    const { data: adminRow } = await supabase
-      .from('catalogue_admins')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (!adminRow) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
+  // Products and cart are public — session refresh only (handled above)
   return supabaseResponse
 }
 
 export const config = {
   matcher: [
+    // Public routes — included only for session cookie refresh
+    '/products',
     '/products/:path*',
-    '/account/:path*',
     '/cart',
     '/cart/:path*',
+    // Guest order lookup — public
+    '/orders/guest/:path*',
+    // Protected — approved customers only
+    '/account/:path*',
     '/orders',
     '/orders/:path*',
+    // Admin
     '/admin/:path*',
   ],
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, ChevronDown, Minus, Package, Plus, ShoppingCart, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Minus, Package, Plus, ShoppingCart, Trash2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useCart } from '@/lib/cart-context'
 import AddressDisplay from '@/components/shared/AddressDisplay'
+import GuestCheckoutForm from './GuestCheckoutForm'
 
 function fmt(v) {
   if (v == null) return null
@@ -26,24 +27,24 @@ const EMPTY_ADDR = {
   company_name: '', contact_name: '', phone: '',
 }
 
-export default function CartContents() {
+export default function CartContents({ isAuthenticated = false }) {
   const { items, removeItem, updateQuantity, clearCart, hydrated } = useCart()
   const router = useRouter()
 
-  const [prices, setPrices] = useState({})
+  const [prices, setPrices]             = useState({})
   const [loadingPrices, setLoadingPrices] = useState(false)
-  const [notes, setNotes] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState(null)
+  const [notes, setNotes]               = useState('')
+  const [submitting, setSubmitting]     = useState(false)
+  const [submitError, setSubmitError]   = useState(null)
 
-  // Address state
-  const [addresses, setAddresses] = useState(null)  // null = loading
-  const [billingId, setBillingId] = useState(null)
-  const [deliveryId, setDeliveryId] = useState(null)
+  // Address state (authenticated flow only)
+  const [addresses,      setAddresses]      = useState(null)
+  const [billingId,      setBillingId]      = useState(null)
+  const [deliveryId,     setDeliveryId]     = useState(null)
   const [showNewDelivery, setShowNewDelivery] = useState(false)
-  const [newAddr, setNewAddr] = useState(EMPTY_ADDR)
-  const [savingAddr, setSavingAddr] = useState(false)
-  const [addrFormError, setAddrFormError] = useState(null)
+  const [newAddr,        setNewAddr]        = useState(EMPTY_ADDR)
+  const [savingAddr,     setSavingAddr]     = useState(false)
+  const [addrFormError,  setAddrFormError]  = useState(null)
 
   useEffect(() => {
     if (!hydrated || items.length === 0) { setPrices({}); return }
@@ -60,7 +61,7 @@ export default function CartContents() {
   }, [items, hydrated])
 
   useEffect(() => {
-    if (!hydrated) return
+    if (!hydrated || !isAuthenticated) return
     fetch('/api/addresses')
       .then(r => r.json())
       .then(d => {
@@ -72,7 +73,7 @@ export default function CartContents() {
         setDeliveryId((del.find(a => a.is_default)  ?? del[0])?.id  ?? null)
       })
       .catch(() => setAddresses([]))
-  }, [hydrated])
+  }, [hydrated, isAuthenticated])
 
   const billing  = (addresses ?? []).filter(a => a.address_type === 'billing')
   const delivery = (addresses ?? []).filter(a => a.address_type === 'delivery')
@@ -82,7 +83,7 @@ export default function CartContents() {
     return p != null ? sum + p * item.quantity : sum
   }, 0)
 
-  const allPricesLoaded    = hydrated && !loadingPrices && items.every(i => prices[i.id] != null)
+  const allPricesLoaded   = hydrated && !loadingPrices && items.every(i => prices[i.id] != null)
   const hasRequiredAddresses = billingId && deliveryId
 
   async function saveNewDelivery() {
@@ -114,7 +115,7 @@ export default function CartContents() {
     }
   }
 
-  async function handleSubmit() {
+  async function handleAuthSubmit() {
     if (!billingId || !deliveryId) {
       setSubmitError('Please select billing and delivery addresses before submitting.')
       return
@@ -143,6 +144,11 @@ export default function CartContents() {
     }
   }
 
+  function handleGuestSuccess({ guestToken }) {
+    clearCart()
+    router.push(`/orders/guest/${guestToken}?new=1`)
+  }
+
   if (!hydrated) {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-4">
@@ -161,7 +167,7 @@ export default function CartContents() {
         <h2 className="text-base font-semibold text-foreground">Your cart is empty</h2>
         <p className="text-sm text-muted-foreground mt-1">Browse the catalogue to add products.</p>
         <Link href="/products" className="mt-5 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline">
-          Browse catalogue
+          Browse products
         </Link>
       </div>
     )
@@ -246,198 +252,203 @@ export default function CartContents() {
 
       <Separator />
 
-      {/* Address section */}
-      <div className="space-y-5">
-        <p className="text-sm font-semibold text-foreground">Delivery &amp; billing</p>
+      {/* ── Checkout section ── */}
+      {isAuthenticated ? (
+        /* Authenticated customer flow */
+        <div className="space-y-5">
+          <p className="text-sm font-semibold text-foreground">Delivery &amp; billing</p>
 
-        {/* Loading */}
-        {addresses === null && (
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-10 w-full rounded-md" />
-          </div>
-        )}
-
-        {/* No billing address — must add from account first */}
-        {addresses !== null && billing.length === 0 && (
-          <Alert className="border-amber-200 bg-amber-50">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800">
-              Please{' '}
-              <Link href="/account" className="underline underline-offset-4 font-medium">
-                add your billing and delivery addresses
-              </Link>{' '}
-              to your account before placing an order.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Addresses available */}
-        {addresses !== null && billing.length > 0 && (
-          <div className="space-y-5">
-            {/* Delivery address */}
+          {addresses === null && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Delivery address *</label>
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-10 w-full rounded-md" />
+            </div>
+          )}
 
-              {delivery.length === 0 && !showNewDelivery && (
-                <p className="text-sm text-muted-foreground">No delivery address on file.</p>
-              )}
+          {addresses !== null && billing.length === 0 && (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                Please{' '}
+                <Link href="/account" className="underline underline-offset-4 font-medium">
+                  add your billing and delivery addresses
+                </Link>{' '}
+                to your account before placing an order.
+              </AlertDescription>
+            </Alert>
+          )}
 
-              {delivery.length > 0 && (
-                <select
-                  value={deliveryId ?? ''}
-                  onChange={e => setDeliveryId(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  {delivery.map(a => (
-                    <option key={a.id} value={a.id}>
-                      {[a.label, a.address_line_1, a.city, a.postcode].filter(Boolean).join(' · ')}
-                    </option>
-                  ))}
-                </select>
-              )}
+          {addresses !== null && billing.length > 0 && (
+            <div className="space-y-5">
+              {/* Delivery address */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Delivery address *</label>
 
-              {!showNewDelivery ? (
-                <button
-                  type="button"
-                  onClick={() => { setShowNewDelivery(true); setAddrFormError(null) }}
-                  className="text-xs text-primary hover:underline underline-offset-4"
-                >
-                  + Add new delivery address
-                </button>
-              ) : (
-                <div className="rounded-lg border bg-muted/20 p-4 space-y-3 mt-2">
-                  <p className="text-sm font-medium">New delivery address</p>
-                  {addrFormError && (
-                    <p className="text-xs text-destructive">{addrFormError}</p>
-                  )}
-                  <div className="grid gap-2.5 sm:grid-cols-2">
-                    <div className="sm:col-span-2 space-y-1">
-                      <Label className="text-xs">Label <span className="text-muted-foreground">(optional)</span></Label>
-                      <Input className="h-8 text-sm" placeholder="e.g. Warehouse, Bolton Office"
-                        value={newAddr.label}
-                        onChange={e => setNewAddr(p => ({ ...p, label: e.target.value }))} />
+                {delivery.length === 0 && !showNewDelivery && (
+                  <p className="text-sm text-muted-foreground">No delivery address on file.</p>
+                )}
+
+                {delivery.length > 0 && (
+                  <select
+                    value={deliveryId ?? ''}
+                    onChange={e => setDeliveryId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    {delivery.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {[a.label, a.address_line_1, a.city, a.postcode].filter(Boolean).join(' · ')}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {!showNewDelivery ? (
+                  <button
+                    type="button"
+                    onClick={() => { setShowNewDelivery(true); setAddrFormError(null) }}
+                    className="text-xs text-primary hover:underline underline-offset-4"
+                  >
+                    + Add new delivery address
+                  </button>
+                ) : (
+                  <div className="rounded-lg border bg-muted/20 p-4 space-y-3 mt-2">
+                    <p className="text-sm font-medium">New delivery address</p>
+                    {addrFormError && (
+                      <p className="text-xs text-destructive">{addrFormError}</p>
+                    )}
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">Label <span className="text-muted-foreground">(optional)</span></Label>
+                        <Input className="h-8 text-sm" placeholder="e.g. Warehouse, Bolton Office"
+                          value={newAddr.label}
+                          onChange={e => setNewAddr(p => ({ ...p, label: e.target.value }))} />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">Address line 1 *</Label>
+                        <Input className="h-8 text-sm" placeholder="123 High Street" required
+                          value={newAddr.address_line_1}
+                          onChange={e => setNewAddr(p => ({ ...p, address_line_1: e.target.value }))} />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label className="text-xs">Address line 2 <span className="text-muted-foreground">(optional)</span></Label>
+                        <Input className="h-8 text-sm" placeholder="Unit 4"
+                          value={newAddr.address_line_2}
+                          onChange={e => setNewAddr(p => ({ ...p, address_line_2: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">City / Town *</Label>
+                        <Input className="h-8 text-sm" placeholder="Manchester" required
+                          value={newAddr.city}
+                          onChange={e => setNewAddr(p => ({ ...p, city: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Postcode *</Label>
+                        <Input className="h-8 text-sm" placeholder="M1 1AA" required
+                          value={newAddr.postcode}
+                          onChange={e => setNewAddr(p => ({ ...p, postcode: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Country *</Label>
+                        <Input className="h-8 text-sm" placeholder="United Kingdom" required
+                          value={newAddr.country}
+                          onChange={e => setNewAddr(p => ({ ...p, country: e.target.value }))} />
+                      </div>
                     </div>
-                    <div className="sm:col-span-2 space-y-1">
-                      <Label className="text-xs">Address line 1 *</Label>
-                      <Input className="h-8 text-sm" placeholder="123 High Street" required
-                        value={newAddr.address_line_1}
-                        onChange={e => setNewAddr(p => ({ ...p, address_line_1: e.target.value }))} />
-                    </div>
-                    <div className="sm:col-span-2 space-y-1">
-                      <Label className="text-xs">Address line 2 <span className="text-muted-foreground">(optional)</span></Label>
-                      <Input className="h-8 text-sm" placeholder="Unit 4"
-                        value={newAddr.address_line_2}
-                        onChange={e => setNewAddr(p => ({ ...p, address_line_2: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">City / Town *</Label>
-                      <Input className="h-8 text-sm" placeholder="Manchester" required
-                        value={newAddr.city}
-                        onChange={e => setNewAddr(p => ({ ...p, city: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Postcode *</Label>
-                      <Input className="h-8 text-sm" placeholder="M1 1AA" required
-                        value={newAddr.postcode}
-                        onChange={e => setNewAddr(p => ({ ...p, postcode: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Country *</Label>
-                      <Input className="h-8 text-sm" placeholder="United Kingdom" required
-                        value={newAddr.country}
-                        onChange={e => setNewAddr(p => ({ ...p, country: e.target.value }))} />
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" onClick={saveNewDelivery} disabled={savingAddr}>
+                        {savingAddr ? 'Saving…' : 'Save address'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setShowNewDelivery(false); setNewAddr(EMPTY_ADDR); setAddrFormError(null) }}
+                        disabled={savingAddr}
+                      >
+                        Cancel
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2 pt-1">
-                    <Button size="sm" onClick={saveNewDelivery} disabled={savingAddr}>
-                      {savingAddr ? 'Saving…' : 'Save address'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => { setShowNewDelivery(false); setNewAddr(EMPTY_ADDR); setAddrFormError(null) }}
-                      disabled={savingAddr}
-                    >
-                      Cancel
-                    </Button>
+                )}
+              </div>
+
+              {/* Billing address */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Billing address</label>
+
+                {billing.length === 1 ? (
+                  <div className="rounded-md border bg-muted/20 px-3 py-2.5">
+                    <AddressDisplay address={billing[0]} />
                   </div>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <select
+                    value={billingId ?? ''}
+                    onChange={e => setBillingId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    {billing.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {[a.label, a.address_line_1, a.city, a.postcode].filter(Boolean).join(' · ')}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-            {/* Billing address */}
+                <p className="text-xs text-muted-foreground">
+                  To change billing address,{' '}
+                  <Link href="/account" className="underline underline-offset-4 hover:text-foreground">
+                    manage your addresses
+                  </Link>
+                  .
+                </p>
+              </div>
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Billing address</label>
-
-              {billing.length === 1 ? (
-                <div className="rounded-md border bg-muted/20 px-3 py-2.5">
-                  <AddressDisplay address={billing[0]} />
-                </div>
-              ) : (
-                <select
-                  value={billingId ?? ''}
-                  onChange={e => setBillingId(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  {billing.map(a => (
-                    <option key={a.id} value={a.id}>
-                      {[a.label, a.address_line_1, a.city, a.postcode].filter(Boolean).join(' · ')}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              <p className="text-xs text-muted-foreground">
-                To change billing address,{' '}
-                <Link href="/account" className="underline underline-offset-4 hover:text-foreground">
-                  manage your addresses
-                </Link>
-                .
-              </p>
+              <label className="text-sm font-medium text-foreground">
+                Order notes <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <Textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Any special requirements or notes for this order…"
+                rows={3}
+                className="resize-none"
+                maxLength={1000}
+              />
             </div>
+
+            {submitError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              onClick={handleAuthSubmit}
+              disabled={submitting || !allPricesLoaded || items.length === 0 || !hasRequiredAddresses}
+              size="lg"
+              className="w-full"
+            >
+              {submitting ? 'Submitting order…' : 'Submit Order'}
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center">
+              Your order will be sent for review. Prices are confirmed at the time of submission.
+            </p>
           </div>
-        )}
-      </div>
-
-      <Separator />
-
-      {/* Notes + Submit */}
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">
-            Order notes <span className="text-muted-foreground font-normal">(optional)</span>
-          </label>
-          <Textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            placeholder="Any special requirements or notes for this order…"
-            rows={3}
-            className="resize-none"
-            maxLength={1000}
-          />
         </div>
-
-        {submitError && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{submitError}</AlertDescription>
-          </Alert>
-        )}
-
-        <Button
-          onClick={handleSubmit}
-          disabled={submitting || !allPricesLoaded || items.length === 0 || !hasRequiredAddresses}
-          size="lg"
-          className="w-full"
-        >
-          {submitting ? 'Submitting order…' : 'Submit Order'}
-        </Button>
-
-        <p className="text-xs text-muted-foreground text-center">
-          Your order will be sent for review. Prices are confirmed at the time of submission.
-        </p>
-      </div>
+      ) : (
+        /* Guest checkout flow */
+        <div className="space-y-4">
+          <p className="text-sm font-semibold text-foreground">Checkout</p>
+          <GuestCheckoutForm items={items} onSuccess={handleGuestSuccess} />
+        </div>
+      )}
     </div>
   )
 }

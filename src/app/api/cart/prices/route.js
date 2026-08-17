@@ -11,19 +11,20 @@ export async function POST(request) {
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: profile } = await supabase
-      .from('customer_profiles')
-      .select('status, customer_segment')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || profile.status !== 'approved') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Determine pricing segment: guests and unapproved users get website_price
+    let segment = 'website'
+    if (user) {
+      const { data: profile } = await supabase
+        .from('customer_profiles')
+        .select('status, customer_segment')
+        .eq('id', user.id)
+        .single()
+      if (profile?.status === 'approved' && profile.customer_segment) {
+        segment = profile.customer_segment
+      }
     }
 
-    const segment = profile.customer_segment
     const prices = {}
 
     await Promise.all(

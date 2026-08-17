@@ -17,6 +17,12 @@ const filters = [
   { label: 'Rejected',  value: 'rejected' },
 ]
 
+const SEGMENT_LABELS = {
+  retail:    'Retail',
+  wholesale: 'Wholesale',
+  trade:     'Trade',
+}
+
 function fmt(d) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -25,6 +31,23 @@ function fmt(d) {
 function fmtPrice(v) {
   if (v == null) return '—'
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(v)
+}
+
+function CustomerTypeBadge({ order }) {
+  const isGuest = !order.customer_id
+  if (isGuest) {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">
+        Guest
+      </span>
+    )
+  }
+  const label = SEGMENT_LABELS[order.customer_segment] ?? order.customer_segment ?? '—'
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+      {label}
+    </span>
+  )
 }
 
 export default async function AdminOrdersPage({ searchParams }) {
@@ -37,6 +60,8 @@ export default async function AdminOrdersPage({ searchParams }) {
     .from('orders')
     .select(`
       id, order_number, status, subtotal, submitted_at,
+      customer_id, customer_segment,
+      guest_full_name, guest_email,
       order_items(id),
       customer_profiles!customer_id(full_name, company_name)
     `)
@@ -48,7 +73,7 @@ export default async function AdminOrdersPage({ searchParams }) {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Orders" subtitle="Review and manage customer orders." />
+      <PageHeader title="Orders" subtitle="Review and manage all orders." />
 
       <div className="flex gap-1.5 flex-wrap border-b pb-px">
         {filters.map(({ label, value }) => {
@@ -80,7 +105,7 @@ export default async function AdminOrdersPage({ searchParams }) {
                 <tr className="border-b bg-muted/40">
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Order</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Customer</th>
-                  <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Company</th>
+                  <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Type</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Submitted</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Items</th>
                   <th className="py-2.5 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total</th>
@@ -90,12 +115,24 @@ export default async function AdminOrdersPage({ searchParams }) {
               </thead>
               <tbody className="divide-y">
                 {orders.map(order => {
-                  const customer = order.customer_profiles
+                  const isGuest = !order.customer_id
+                  const displayName = isGuest
+                    ? order.guest_full_name
+                    : (order.customer_profiles?.full_name ?? '—')
+                  const displayCompany = isGuest
+                    ? order.guest_email
+                    : (order.customer_profiles?.company_name ?? '—')
+
                   return (
                     <tr key={order.id} className="hover:bg-muted/20 transition-colors">
                       <td className="py-3 px-4 font-mono text-xs font-medium text-foreground">{order.order_number}</td>
-                      <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">{customer?.full_name || '—'}</td>
-                      <td className="py-3 px-4 text-muted-foreground hidden lg:table-cell">{customer?.company_name || '—'}</td>
+                      <td className="py-3 px-4 hidden md:table-cell">
+                        <p className="text-foreground text-sm">{displayName || '—'}</p>
+                        <p className="text-muted-foreground text-xs">{displayCompany || ''}</p>
+                      </td>
+                      <td className="py-3 px-4 hidden lg:table-cell">
+                        <CustomerTypeBadge order={order} />
+                      </td>
                       <td className="py-3 px-4 text-muted-foreground whitespace-nowrap hidden sm:table-cell">{fmt(order.submitted_at)}</td>
                       <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">{order.order_items?.length ?? 0}</td>
                       <td className="py-3 px-4 font-medium text-foreground whitespace-nowrap">{fmtPrice(order.subtotal)}</td>

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Package } from 'lucide-react'
+import { ArrowLeft, Building2, Package } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { getProduct, sanitizeProduct } from '@/lib/catalogue-api'
 import { getCustomerProfile } from '@/lib/auth-helpers'
@@ -37,7 +37,10 @@ export default async function ProductDetailPage({ params }) {
   if (!rawProduct) notFound()
 
   const profile = await getCustomerProfile()
-  const segment = profile?.customer_segment ?? null
+  const isApproved = profile?.status === 'approved'
+  const segment = isApproved ? (profile.customer_segment ?? 'website') : 'website'
+  const isAccountCustomer = isApproved && profile?.customer_segment
+
   const product = sanitizeProduct(rawProduct, segment)
 
   const {
@@ -70,7 +73,7 @@ export default async function ProductDetailPage({ params }) {
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to catalogue
+        Back to products
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -127,7 +130,12 @@ export default async function ProductDetailPage({ params }) {
 
           <div className="space-y-1">
             {formattedPrice ? (
-              <p className="text-3xl font-bold text-foreground">{formattedPrice}</p>
+              <div>
+                <p className="text-3xl font-bold text-foreground">{formattedPrice}</p>
+                {isAccountCustomer && (
+                  <p className="text-xs text-muted-foreground mt-0.5">Your price</p>
+                )}
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground italic">Price unavailable</p>
             )}
@@ -142,6 +150,35 @@ export default async function ProductDetailPage({ params }) {
             product={{ id, title, sku, imageUrl: primaryImage }}
             maxStock={stock ?? undefined}
           />
+
+          {/* Account pricing callout for guests */}
+          {!isAccountCustomer && (
+            <div className="rounded-lg border bg-muted/30 px-4 py-3 flex items-start gap-3">
+              <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Have a business account?</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isApproved
+                    ? 'Sign in to view your account pricing.'
+                    : 'Sign in to view your account price, or '}
+                  {!isApproved && (
+                    <Link href="/register" className="underline underline-offset-4 hover:text-foreground">
+                      apply for trade access
+                    </Link>
+                  )}
+                  {!isApproved && ' to unlock tier pricing.'}
+                </p>
+                {!isApproved && (
+                  <Link
+                    href="/login"
+                    className="mt-1.5 inline-block text-xs font-medium text-primary hover:underline underline-offset-4"
+                  >
+                    Sign in →
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
 
           <Separator />
 

@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export const revalidate = 0
 
 export const metadata = {
-  title: 'Products — PCCustomizer Catalogue',
+  title: 'Products — PCCustomizer',
 }
 
 const PRICE_SORTS = new Set(['price_asc', 'price_desc'])
@@ -42,25 +42,26 @@ function ProductGridSkeleton() {
   )
 }
 
-// ── Product results (server component — runs inside Suspense) ─────────────────
+// ── Product results ────────────────────────────────────────────────────────────
 
-async function ProductResults({ searchParams, segment, canPriceSort }) {
+async function ProductResults({ searchParams, segment }) {
   let result = null
   let fetchError = null
 
-  // Override price sort for non-retail segments — internal API sorts by retail_price only
-  const sort = (!canPriceSort && PRICE_SORTS.has(searchParams.sort)) ? 'newest' : searchParams.sort
+  const sort = searchParams.sort ?? 'newest'
+  const priceContext = PRICE_SORTS.has(sort) ? segment : undefined
 
   try {
     result = await getProducts({
-      search:    searchParams.q,
-      category:  searchParams.category,
-      condition: searchParams.condition,
-      brand:     searchParams.brand,
-      in_stock:  searchParams.in_stock,
+      search:        searchParams.q,
+      category:      searchParams.category,
+      condition:     searchParams.condition,
+      brand:         searchParams.brand,
+      in_stock:      searchParams.in_stock,
       sort,
-      page:      searchParams.page,
-      page_size: '24',
+      page:          searchParams.page,
+      page_size:     '24',
+      price_context: priceContext,
     })
   } catch (err) {
     fetchError = err.message
@@ -133,10 +134,11 @@ export default async function ProductsPage({ searchParams }) {
     getFilterOptions(),
   ])
 
-  const segment = profile?.customer_segment ?? null
-  const canPriceSort = segment === 'retail'
+  // Guests and unapproved users see website_price; approved customers see their tier price
+  const isApproved = profile?.status === 'approved'
+  const segment = isApproved ? (profile.customer_segment ?? 'website') : 'website'
+  const isAccountCustomer = isApproved && profile?.customer_segment
 
-  // Stable key: forces Suspense to remount (show skeleton) whenever filters change
   const paramsKey = new URLSearchParams(
     Object.fromEntries(
       Object.entries(params).filter(([, v]) => v != null)
@@ -149,20 +151,22 @@ export default async function ProductsPage({ searchParams }) {
       <div className="border-b bg-background">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-5 space-y-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Product Catalogue</h1>
+            <h1 className="text-xl font-bold text-foreground">Products</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Browse products available to your account.
+              {isAccountCustomer
+                ? 'Browse with your account pricing applied.'
+                : 'Browse our full product range. Prices shown are public rates.'}
             </p>
           </div>
           <CatalogueSearchBar />
-          <CatalogueFilterBar options={filterOptions} canPriceSort={canPriceSort} />
+          <CatalogueFilterBar options={filterOptions} canPriceSort={true} />
         </div>
       </div>
 
       {/* ── Grid ── */}
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 sm:px-6 py-6">
         <Suspense key={paramsKey} fallback={<ProductGridSkeleton />}>
-          <ProductResults searchParams={params} segment={segment} canPriceSort={canPriceSort} />
+          <ProductResults searchParams={params} segment={segment} />
         </Suspense>
       </div>
     </div>

@@ -23,6 +23,12 @@ function fmtPrice(v) {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(v)
 }
 
+const SEGMENT_LABELS = {
+  retail:    'Retail',
+  wholesale: 'Wholesale',
+  trade:     'Trade',
+}
+
 export default async function AdminOrderDetailPage({ params }) {
   const { id } = await params
   const supabase = createServiceClient()
@@ -31,7 +37,8 @@ export default async function AdminOrderDetailPage({ params }) {
     .from('orders')
     .select(`
       id, order_number, status, subtotal, customer_segment,
-      customer_notes, admin_notes, submitted_at, confirmed_at, rejected_at,
+      customer_id, customer_notes, admin_notes, submitted_at, confirmed_at, rejected_at,
+      guest_full_name, guest_email, guest_phone, guest_company_name,
       billing_address_snapshot, delivery_address_snapshot,
       order_items (id, product_id, sku, product_title, quantity, unit_price, line_total),
       customer_profiles!customer_id (id, full_name, company_name, email, phone, company_vat)
@@ -41,8 +48,13 @@ export default async function AdminOrderDetailPage({ params }) {
 
   if (!order) notFound()
 
+  const isGuest   = !order.customer_id
   const customer  = order.customer_profiles
   const isPending = order.status === 'pending'
+
+  const customerTypeLabel = isGuest
+    ? 'Guest'
+    : (SEGMENT_LABELS[order.customer_segment] ?? order.customer_segment ?? '—')
 
   return (
     <div className="space-y-6">
@@ -74,34 +86,55 @@ export default async function AdminOrderDetailPage({ params }) {
       )}
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Customer info */}
+        {/* Customer / Guest info */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</CardTitle>
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              {isGuest ? 'Guest contact' : 'Customer'}
+            </CardTitle>
           </CardHeader>
           <CardContent className="divide-y pt-0">
-            {[
-              ['Name',    customer?.full_name],
-              ['Company', customer?.company_name],
-              ['Email',   customer?.email],
-              ['Phone',   customer?.phone],
-              ['VAT',     customer?.company_vat],
-              ['Segment', order.customer_segment],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-3 py-2">
-                <span className="text-sm text-muted-foreground w-20 shrink-0">{label}</span>
-                <span className="text-sm font-medium text-foreground">{value || '—'}</span>
-              </div>
-            ))}
-            {customer?.id && (
-              <div className="pt-3">
-                <Link
-                  href={`/admin/customers/${customer.id}`}
-                  className="text-xs font-medium text-primary hover:underline underline-offset-4"
-                >
-                  View customer profile →
-                </Link>
-              </div>
+            {isGuest ? (
+              <>
+                {[
+                  ['Name',         order.guest_full_name],
+                  ['Email',        order.guest_email],
+                  ['Phone',        order.guest_phone],
+                  ['Company',      order.guest_company_name],
+                  ['Customer type','Guest'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex gap-3 py-2">
+                    <span className="text-sm text-muted-foreground w-24 shrink-0">{label}</span>
+                    <span className="text-sm font-medium text-foreground">{value || '—'}</span>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <>
+                {[
+                  ['Name',          customer?.full_name],
+                  ['Company',       customer?.company_name],
+                  ['Email',         customer?.email],
+                  ['Phone',         customer?.phone],
+                  ['VAT',           customer?.company_vat],
+                  ['Customer type', customerTypeLabel],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex gap-3 py-2">
+                    <span className="text-sm text-muted-foreground w-24 shrink-0">{label}</span>
+                    <span className="text-sm font-medium text-foreground">{value || '—'}</span>
+                  </div>
+                ))}
+                {customer?.id && (
+                  <div className="pt-3">
+                    <Link
+                      href={`/admin/customers/${customer.id}`}
+                      className="text-xs font-medium text-primary hover:underline underline-offset-4"
+                    >
+                      View customer profile →
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
