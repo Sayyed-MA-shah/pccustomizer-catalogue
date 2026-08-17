@@ -36,11 +36,11 @@ ALTER TABLE public.orders
 CREATE OR REPLACE FUNCTION public.create_guest_order(
   p_guest_full_name           text,
   p_guest_email               text,
+  p_subtotal                  numeric,
+  p_items                     jsonb,
   p_guest_phone               text            DEFAULT NULL,
   p_guest_company_name        text            DEFAULT NULL,
-  p_subtotal                  numeric,
   p_customer_notes            text            DEFAULT NULL,
-  p_items                     jsonb,
   p_billing_address_snapshot  jsonb           DEFAULT NULL,
   p_delivery_address_snapshot jsonb           DEFAULT NULL
 )
