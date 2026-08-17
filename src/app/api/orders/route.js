@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getProduct, sanitizeProduct } from '@/lib/catalogue-api'
+import { buildAddressSnapshot } from '@/lib/address-validation'
 
 export async function POST(request) {
   // 1. Authenticate
@@ -24,14 +25,47 @@ export async function POST(request) {
     return NextResponse.json({ error: 'No customer type assigned to your account. Contact an administrator.' }, { status: 403 })
   }
 
-  // 3. Parse body — only trust product IDs and quantities from browser
+  // 3. Parse body — only trust product IDs, quantities, and address IDs from browser
   let body
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { items, notes } = body
+  const { items, notes, billingAddressId, deliveryAddressId } = body
 
+  // 4. Validate address IDs are present
+  if (!billingAddressId || typeof billingAddressId !== 'string') {
+    return NextResponse.json({
+      error: 'Please select a billing address before submitting your order.',
+      addressRequired: true,
+    }, { status: 422 })
+  }
+  if (!deliveryAddressId || typeof deliveryAddressId !== 'string') {
+    return NextResponse.json({
+      error: 'Please select a delivery address before submitting your order.',
+      addressRequired: true,
+    }, { status: 422 })
+  }
+
+  // 5. Fetch addresses using the authenticated client — RLS ensures ownership.
+  //    If an address doesn't belong to this user, Supabase returns null.
+  const [{ data: billingAddr }, { data: deliveryAddr }] = await Promise.all([
+    supabase.from('customer_addresses').select('*').eq('id', billingAddressId).maybeSingle(),
+    supabase.from('customer_addresses').select('*').eq('id', deliveryAddressId).maybeSingle(),
+  ])
+
+  if (!billingAddr) {
+    return NextResponse.json({ error: 'Selected billing address not found or does not belong to your account.' }, { status: 422 })
+  }
+  if (!deliveryAddr) {
+    return NextResponse.json({ error: 'Selected delivery address not found or does not belong to your account.' }, { status: 422 })
+  }
+
+  // Build immutable snapshots — these are written to the order and never change again
+  const billingSnapshot  = buildAddressSnapshot(billingAddr)
+  const deliverySnapshot = buildAddressSnapshot(deliveryAddr)
+
+  // 6. Validate items
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'Your cart is empty' }, { status: 400 })
   }
@@ -45,7 +79,7 @@ export async function POST(request) {
     }
   }
 
-  // 4–6. Server-side: fetch products, resolve prices, validate stock
+  // 7. Server-side: fetch products, resolve prices, validate stock
   const validatedItems = []
   const errors = []
 
@@ -92,17 +126,19 @@ export async function POST(request) {
     return NextResponse.json({ error: errors.join(' '), errors }, { status: 422 })
   }
 
-  // 7. Calculate subtotal server-side
+  // 8. Calculate subtotal server-side
   const subtotal = +validatedItems.reduce((sum, i) => sum + i.line_total, 0).toFixed(2)
 
-  // 8. Create order atomically via RPC
+  // 9. Create order atomically via RPC — snapshots are written here and never mutated again
   const service = createServiceClient()
   const { data, error: rpcError } = await service.rpc('create_order', {
-    p_customer_id:      user.id,
-    p_customer_segment: segment,
-    p_subtotal:         subtotal,
-    p_customer_notes:   notes ?? null,
-    p_items:            validatedItems,
+    p_customer_id:               user.id,
+    p_customer_segment:          segment,
+    p_subtotal:                  subtotal,
+    p_customer_notes:            notes ?? null,
+    p_items:                     validatedItems,
+    p_billing_address_snapshot:  billingSnapshot,
+    p_delivery_address_snapshot: deliverySnapshot,
   })
 
   if (rpcError) {

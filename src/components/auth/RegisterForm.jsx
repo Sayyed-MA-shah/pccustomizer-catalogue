@@ -15,12 +15,20 @@ export default function RegisterForm() {
   const [formError, setFormError] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
   const [fields, setFields] = useState({
-    full_name:    '',
-    company_name: '',
-    company_vat:  '',
-    phone:        '',
-    email:        '',
-    password:     '',
+    full_name:       '',
+    company_name:    '',
+    company_vat:     '',
+    phone:           '',
+    // address
+    address_line_1:  '',
+    address_line_2:  '',
+    city:            '',
+    county:          '',
+    postcode:        '',
+    country:         'United Kingdom',
+    // credentials
+    email:           '',
+    password:        '',
   })
 
   function set(key) {
@@ -65,7 +73,6 @@ export default function RegisterForm() {
     })
 
     if (signInError) {
-      // Account was created but sign-in failed — send to login
       router.push('/login?registered=1')
       return
     }
@@ -82,6 +89,7 @@ export default function RegisterForm() {
         </Alert>
       )}
 
+      {/* Personal */}
       <div className="space-y-2">
         <Label htmlFor="full_name">Full name *</Label>
         <Input
@@ -98,6 +106,7 @@ export default function RegisterForm() {
 
       <Separator />
 
+      {/* Business */}
       <div className="space-y-2">
         <Label htmlFor="company_name">Company name *</Label>
         <Input
@@ -143,6 +152,102 @@ export default function RegisterForm() {
 
       <Separator />
 
+      {/* Business address */}
+      <div>
+        <p className="text-sm font-medium text-foreground mb-3">Business address</p>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="address_line_1">Address line 1 *</Label>
+            <Input
+              id="address_line_1"
+              type="text"
+              autoComplete="address-line1"
+              required
+              value={fields.address_line_1}
+              onChange={set('address_line_1')}
+              placeholder="123 High Street"
+            />
+            {fieldError('address_line_1')}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="address_line_2">
+              Address line 2 <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id="address_line_2"
+              type="text"
+              autoComplete="address-line2"
+              value={fields.address_line_2}
+              onChange={set('address_line_2')}
+              placeholder="Unit 4, Floor 2"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="city">City / Town *</Label>
+              <Input
+                id="city"
+                type="text"
+                autoComplete="address-level2"
+                required
+                value={fields.city}
+                onChange={set('city')}
+                placeholder="Manchester"
+              />
+              {fieldError('city')}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="county">
+                County <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="county"
+                type="text"
+                value={fields.county}
+                onChange={set('county')}
+                placeholder="Greater Manchester"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="postcode">Postcode *</Label>
+              <Input
+                id="postcode"
+                type="text"
+                autoComplete="postal-code"
+                required
+                value={fields.postcode}
+                onChange={set('postcode')}
+                placeholder="M1 1AA"
+              />
+              {fieldError('postcode')}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="country">Country *</Label>
+              <Input
+                id="country"
+                type="text"
+                autoComplete="country-name"
+                required
+                value={fields.country}
+                onChange={set('country')}
+                placeholder="United Kingdom"
+              />
+              {fieldError('country')}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Credentials */}
       <div className="space-y-2">
         <Label htmlFor="email">Email address *</Label>
         <Input

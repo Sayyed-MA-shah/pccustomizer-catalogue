@@ -1,10 +1,12 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, MapPin } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import StatusBadge from '@/components/shared/StatusBadge'
 import SegmentBadge from '@/components/shared/SegmentBadge'
+import AddressDisplay from '@/components/shared/AddressDisplay'
 import RevokeButton from '@/components/admin/RevokeButton'
 import ChangeSegmentButton from '@/components/admin/ChangeSegmentButton'
 
@@ -29,16 +31,26 @@ export default async function CustomerDetailPage({ params }) {
   const { id } = await params
   const supabase = await createServiceClient()
 
-  const [{ data: profile }, { data: requests }] = await Promise.all([
+  const [{ data: profile }, { data: requests }, { data: addresses }] = await Promise.all([
     supabase.from('customer_profiles').select('*').eq('id', id).single(),
     supabase
       .from('access_requests')
       .select('id, status, submitted_at, reviewed_at, notes')
       .eq('user_id', id)
       .order('submitted_at', { ascending: false }),
+    supabase
+      .from('customer_addresses')
+      .select('*')
+      .eq('customer_id', id)
+      .order('address_type')
+      .order('is_default', { ascending: false })
+      .order('created_at'),
   ])
 
   if (!profile) notFound()
+
+  const billing  = (addresses ?? []).filter(a => a.address_type === 'billing')
+  const delivery = (addresses ?? []).filter(a => a.address_type === 'delivery')
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -73,9 +85,9 @@ export default async function CustomerDetailPage({ params }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y pt-0">
-            <Row label="Full name" value={profile.full_name} />
-            <Row label="Email" value={profile.email} />
-            <Row label="Phone" value={profile.phone} />
+            <Row label="Full name"    value={profile.full_name} />
+            <Row label="Email"        value={profile.email} />
+            <Row label="Phone"        value={profile.phone} />
             <Row label="Member since" value={fmt(profile.created_at)} />
           </CardContent>
         </Card>
@@ -87,16 +99,68 @@ export default async function CustomerDetailPage({ params }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y pt-0">
-            <Row label="Company" value={profile.company_name} />
-            <Row label="VAT number" value={profile.company_vat} />
+            <Row label="Company"       value={profile.company_name} />
+            <Row label="VAT number"    value={profile.company_vat} />
             <Row label="Access status" value={<StatusBadge status={profile.status} />} />
-            <Row
-              label="Customer type"
-              value={<SegmentBadge segment={profile.customer_segment} />}
-            />
+            <Row label="Customer type" value={<SegmentBadge segment={profile.customer_segment} />} />
           </CardContent>
         </Card>
       </div>
+
+      {/* Customer addresses (read-only view for admin) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5" />
+            Addresses
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5 pt-0">
+          {/* Billing */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Billing</p>
+            {billing.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No billing address on file.</p>
+            ) : (
+              <div className="space-y-3">
+                {billing.map(addr => (
+                  <div key={addr.id} className="flex items-start gap-2">
+                    {addr.is_default && (
+                      <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 shrink-0">
+                        Default
+                      </span>
+                    )}
+                    <AddressDisplay address={addr} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Delivery */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Delivery</p>
+            {delivery.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No delivery addresses on file.</p>
+            ) : (
+              <div className="space-y-3">
+                {delivery.map(addr => (
+                  <div key={addr.id} className="flex items-start gap-2">
+                    {addr.is_default && (
+                      <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 shrink-0">
+                        Default
+                      </span>
+                    )}
+                    <AddressDisplay address={addr} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">
@@ -128,7 +192,6 @@ export default async function CustomerDetailPage({ params }) {
       {/* Admin actions */}
       {profile.status === 'approved' && (
         <div className="space-y-3">
-          {/* Change segment */}
           <div className="rounded-lg border px-4 py-4 space-y-3">
             <div>
               <p className="text-sm font-medium text-foreground">Customer type</p>
@@ -143,7 +206,6 @@ export default async function CustomerDetailPage({ params }) {
             />
           </div>
 
-          {/* Revoke access */}
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-4 space-y-3">
             <div>
               <p className="text-sm font-medium text-foreground">Revoke catalogue access</p>

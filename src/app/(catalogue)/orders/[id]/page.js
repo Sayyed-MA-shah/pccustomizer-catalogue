@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/supabase/server'
 import OrderStatusBadge from '@/components/shared/OrderStatusBadge'
+import AddressDisplay from '@/components/shared/AddressDisplay'
 import CancelOrderButton from '@/components/catalogue/CancelOrderButton'
 
 export const revalidate = 0
@@ -36,6 +37,7 @@ export default async function CustomerOrderDetailPage({ params, searchParams }) 
     .select(`
       id, order_number, status, subtotal, customer_segment,
       customer_notes, admin_notes, submitted_at, confirmed_at, rejected_at,
+      billing_address_snapshot, delivery_address_snapshot,
       order_items (id, product_id, sku, product_title, quantity, unit_price, line_total)
     `)
     .eq('id', id)
@@ -123,6 +125,32 @@ export default async function CustomerOrderDetailPage({ params, searchParams }) 
           ))}
         </CardContent>
       </Card>
+
+      {/* Address snapshots */}
+      {(order.delivery_address_snapshot || order.billing_address_snapshot) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {order.delivery_address_snapshot && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Delivery address</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <AddressDisplay address={order.delivery_address_snapshot} />
+              </CardContent>
+            </Card>
+          )}
+          {order.billing_address_snapshot && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Billing address</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <AddressDisplay address={order.billing_address_snapshot} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Items */}
       <Card>

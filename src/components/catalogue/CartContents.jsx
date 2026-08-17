@@ -4,17 +4,26 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, Minus, Package, Plus, ShoppingCart, Trash2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Minus, Package, Plus, ShoppingCart, Trash2, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { useCart } from '@/lib/cart-context'
+import AddressDisplay from '@/components/shared/AddressDisplay'
 
 function fmt(v) {
   if (v == null) return null
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(v)
+}
+
+const EMPTY_ADDR = {
+  label: '', address_line_1: '', address_line_2: '',
+  city: '', county: '', postcode: '', country: 'United Kingdom',
+  company_name: '', contact_name: '', phone: '',
 }
 
 export default function CartContents() {
@@ -26,6 +35,15 @@ export default function CartContents() {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
+
+  // Address state
+  const [addresses, setAddresses] = useState(null)  // null = loading
+  const [billingId, setBillingId] = useState(null)
+  const [deliveryId, setDeliveryId] = useState(null)
+  const [showNewDelivery, setShowNewDelivery] = useState(false)
+  const [newAddr, setNewAddr] = useState(EMPTY_ADDR)
+  const [savingAddr, setSavingAddr] = useState(false)
+  const [addrFormError, setAddrFormError] = useState(null)
 
   useEffect(() => {
     if (!hydrated || items.length === 0) { setPrices({}); return }
@@ -41,14 +59,66 @@ export default function CartContents() {
       .finally(() => setLoadingPrices(false))
   }, [items, hydrated])
 
+  useEffect(() => {
+    if (!hydrated) return
+    fetch('/api/addresses')
+      .then(r => r.json())
+      .then(d => {
+        const list = d.addresses ?? []
+        setAddresses(list)
+        const bill = list.filter(a => a.address_type === 'billing')
+        const del  = list.filter(a => a.address_type === 'delivery')
+        setBillingId( (bill.find(a => a.is_default) ?? bill[0])?.id ?? null)
+        setDeliveryId((del.find(a => a.is_default)  ?? del[0])?.id  ?? null)
+      })
+      .catch(() => setAddresses([]))
+  }, [hydrated])
+
+  const billing  = (addresses ?? []).filter(a => a.address_type === 'billing')
+  const delivery = (addresses ?? []).filter(a => a.address_type === 'delivery')
+
   const subtotal = items.reduce((sum, item) => {
     const p = prices[item.id]
     return p != null ? sum + p * item.quantity : sum
   }, 0)
 
-  const allPricesLoaded = hydrated && !loadingPrices && items.every(i => prices[i.id] != null)
+  const allPricesLoaded    = hydrated && !loadingPrices && items.every(i => prices[i.id] != null)
+  const hasRequiredAddresses = billingId && deliveryId
+
+  async function saveNewDelivery() {
+    setSavingAddr(true)
+    setAddrFormError(null)
+    try {
+      const res = await fetch('/api/addresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newAddr,
+          address_type: 'delivery',
+          is_default:   delivery.length === 0,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setAddrFormError(data.errors ? Object.values(data.errors)[0] : (data.error ?? 'Failed to save'))
+        return
+      }
+      setAddresses(prev => [...(prev ?? []), data.address])
+      setDeliveryId(data.address.id)
+      setShowNewDelivery(false)
+      setNewAddr(EMPTY_ADDR)
+    } catch {
+      setAddrFormError('Network error. Please try again.')
+    } finally {
+      setSavingAddr(false)
+    }
+  }
 
   async function handleSubmit() {
+    if (!billingId || !deliveryId) {
+      setSubmitError('Please select billing and delivery addresses before submitting.')
+      return
+    }
     setSubmitting(true)
     setSubmitError(null)
     try {
@@ -56,8 +126,10 @@ export default function CartContents() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map(i => ({ id: i.id, quantity: i.quantity })),
-          notes: notes.trim() || null,
+          items:             items.map(i => ({ id: i.id, quantity: i.quantity })),
+          notes:             notes.trim() || null,
+          billingAddressId:  billingId,
+          deliveryAddressId: deliveryId,
         }),
       })
       const data = await res.json()
@@ -107,7 +179,7 @@ export default function CartContents() {
       {/* Items */}
       <div className="rounded-lg border bg-card divide-y overflow-hidden">
         {items.map(item => {
-          const price = prices[item.id]
+          const price     = prices[item.id]
           const lineTotal = price != null ? price * item.quantity : null
 
           return (
@@ -174,6 +246,162 @@ export default function CartContents() {
 
       <Separator />
 
+      {/* Address section */}
+      <div className="space-y-5">
+        <p className="text-sm font-semibold text-foreground">Delivery &amp; billing</p>
+
+        {/* Loading */}
+        {addresses === null && (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-10 w-full rounded-md" />
+          </div>
+        )}
+
+        {/* No billing address — must add from account first */}
+        {addresses !== null && billing.length === 0 && (
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-800">
+              Please{' '}
+              <Link href="/account" className="underline underline-offset-4 font-medium">
+                add your billing and delivery addresses
+              </Link>{' '}
+              to your account before placing an order.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Addresses available */}
+        {addresses !== null && billing.length > 0 && (
+          <div className="space-y-5">
+            {/* Delivery address */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Delivery address *</label>
+
+              {delivery.length === 0 && !showNewDelivery && (
+                <p className="text-sm text-muted-foreground">No delivery address on file.</p>
+              )}
+
+              {delivery.length > 0 && (
+                <select
+                  value={deliveryId ?? ''}
+                  onChange={e => setDeliveryId(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  {delivery.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {[a.label, a.address_line_1, a.city, a.postcode].filter(Boolean).join(' · ')}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {!showNewDelivery ? (
+                <button
+                  type="button"
+                  onClick={() => { setShowNewDelivery(true); setAddrFormError(null) }}
+                  className="text-xs text-primary hover:underline underline-offset-4"
+                >
+                  + Add new delivery address
+                </button>
+              ) : (
+                <div className="rounded-lg border bg-muted/20 p-4 space-y-3 mt-2">
+                  <p className="text-sm font-medium">New delivery address</p>
+                  {addrFormError && (
+                    <p className="text-xs text-destructive">{addrFormError}</p>
+                  )}
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <div className="sm:col-span-2 space-y-1">
+                      <Label className="text-xs">Label <span className="text-muted-foreground">(optional)</span></Label>
+                      <Input className="h-8 text-sm" placeholder="e.g. Warehouse, Bolton Office"
+                        value={newAddr.label}
+                        onChange={e => setNewAddr(p => ({ ...p, label: e.target.value }))} />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1">
+                      <Label className="text-xs">Address line 1 *</Label>
+                      <Input className="h-8 text-sm" placeholder="123 High Street" required
+                        value={newAddr.address_line_1}
+                        onChange={e => setNewAddr(p => ({ ...p, address_line_1: e.target.value }))} />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1">
+                      <Label className="text-xs">Address line 2 <span className="text-muted-foreground">(optional)</span></Label>
+                      <Input className="h-8 text-sm" placeholder="Unit 4"
+                        value={newAddr.address_line_2}
+                        onChange={e => setNewAddr(p => ({ ...p, address_line_2: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">City / Town *</Label>
+                      <Input className="h-8 text-sm" placeholder="Manchester" required
+                        value={newAddr.city}
+                        onChange={e => setNewAddr(p => ({ ...p, city: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Postcode *</Label>
+                      <Input className="h-8 text-sm" placeholder="M1 1AA" required
+                        value={newAddr.postcode}
+                        onChange={e => setNewAddr(p => ({ ...p, postcode: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Country *</Label>
+                      <Input className="h-8 text-sm" placeholder="United Kingdom" required
+                        value={newAddr.country}
+                        onChange={e => setNewAddr(p => ({ ...p, country: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" onClick={saveNewDelivery} disabled={savingAddr}>
+                      {savingAddr ? 'Saving…' : 'Save address'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setShowNewDelivery(false); setNewAddr(EMPTY_ADDR); setAddrFormError(null) }}
+                      disabled={savingAddr}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Billing address */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Billing address</label>
+
+              {billing.length === 1 ? (
+                <div className="rounded-md border bg-muted/20 px-3 py-2.5">
+                  <AddressDisplay address={billing[0]} />
+                </div>
+              ) : (
+                <select
+                  value={billingId ?? ''}
+                  onChange={e => setBillingId(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  {billing.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {[a.label, a.address_line_1, a.city, a.postcode].filter(Boolean).join(' · ')}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                To change billing address,{' '}
+                <Link href="/account" className="underline underline-offset-4 hover:text-foreground">
+                  manage your addresses
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Separator />
+
       {/* Notes + Submit */}
       <div className="space-y-4">
         <div className="space-y-2">
@@ -199,7 +427,7 @@ export default function CartContents() {
 
         <Button
           onClick={handleSubmit}
-          disabled={submitting || !allPricesLoaded || items.length === 0}
+          disabled={submitting || !allPricesLoaded || items.length === 0 || !hasRequiredAddresses}
           size="lg"
           className="w-full"
         >
