@@ -5,6 +5,18 @@
 ALTER TABLE public.orders
   ALTER COLUMN customer_id DROP NOT NULL;
 
+-- 1b. Make customer_segment nullable and broaden the CHECK so NULL is allowed
+--     (guest orders have no segment; constraint still enforces valid values when set)
+ALTER TABLE public.orders
+  ALTER COLUMN customer_segment DROP NOT NULL;
+
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_customer_segment_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_customer_segment_check
+  CHECK (customer_segment IS NULL OR customer_segment IN ('retail', 'wholesale', 'trade'));
+
 -- 2. Guest contact snapshot fields
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS guest_full_name    text,

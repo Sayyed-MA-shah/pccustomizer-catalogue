@@ -12,27 +12,6 @@ export const metadata = {
   description: 'Professional IT hardware and technology for businesses. Apply for a trade account to access exclusive pricing.',
 }
 
-const tiers = [
-  {
-    name: 'Retail',
-    color: 'border-blue-200 bg-blue-50',
-    badge: 'bg-blue-100 text-blue-700',
-    description: 'For established businesses purchasing regularly. Competitive rates with a straightforward account structure.',
-  },
-  {
-    name: 'Wholesale',
-    color: 'border-violet-200 bg-violet-50',
-    badge: 'bg-violet-100 text-violet-700',
-    description: 'For distributors and high-volume buyers. Deeper discounts that reflect the scale of your operation.',
-  },
-  {
-    name: 'Trade',
-    color: 'border-amber-200 bg-amber-50',
-    badge: 'bg-amber-100 text-amber-700',
-    description: 'For resellers and trade professionals. Our best rates for those integrating our products into their service.',
-  },
-]
-
 export default async function HomePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -47,7 +26,6 @@ export default async function HomePage() {
     if (data?.status === 'approved') profile = data
   }
 
-  // Fetch featured products (public website_price view)
   let featured = []
   try {
     const result = await getProducts({ page_size: '6', sort: 'newest' })
@@ -57,7 +35,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <CatalogueHeader profile={profile} currentPath="/" />
+      <CatalogueHeader profile={profile} />
 
       <main className="flex-1">
         {/* ── Hero ── */}
@@ -73,11 +51,7 @@ export default async function HomePage() {
             </p>
 
             {/* Search bar */}
-            <form
-              method="GET"
-              action="/products"
-              className="max-w-md mx-auto flex gap-2"
-            >
+            <form method="GET" action="/products" className="max-w-md mx-auto flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
@@ -180,42 +154,30 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── Business account tiers ── */}
+        {/* ── Business account callout (guests only) ── */}
         {!profile && (
           <section className="border-b">
-            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-12 space-y-8">
-              <div className="text-center space-y-2">
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-12">
+              <div className="rounded-xl border bg-muted/30 px-6 py-8 sm:px-10 text-center space-y-4 max-w-2xl mx-auto">
                 <h2 className="text-lg font-bold text-foreground">Business account pricing</h2>
-                <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  Apply once. Once approved, your account pricing is applied automatically across the entire catalogue.
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Three account tiers — Retail, Wholesale, and Trade — for approved business customers.
+                  Apply once; your pricing is applied automatically across the entire catalogue.
                 </p>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {tiers.map(tier => (
-                  <div key={tier.name} className={`rounded-lg border p-5 space-y-3 ${tier.color}`}>
-                    <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${tier.badge}`}>
-                      {tier.name}
-                    </span>
-                    <p className="text-sm text-foreground leading-relaxed">{tier.description}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="text-center space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Pricing details are shared during the account review. We don't publish tier rates publicly.
-                </p>
-                <Link
-                  href="/register"
-                  className="inline-flex h-10 items-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                >
-                  Apply for business access
-                </Link>
-                <p className="text-xs text-muted-foreground">
-                  Already have an account?{' '}
-                  <Link href="/login" className="underline underline-offset-4 hover:text-foreground">
-                    Sign in
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+                  <Link
+                    href="/business"
+                    className="inline-flex h-9 items-center rounded-md border border-input bg-background px-5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                  >
+                    Learn about account types
                   </Link>
-                </p>
+                  <Link
+                    href="/register"
+                    className="inline-flex h-9 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    Apply for business access
+                  </Link>
+                </div>
               </div>
             </div>
           </section>
@@ -233,7 +195,7 @@ export default async function HomePage() {
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <Link href="/products" className="hover:text-foreground transition-colors">Products</Link>
-            <Link href="/register" className="hover:text-foreground transition-colors">Business Account</Link>
+            <Link href="/business" className="hover:text-foreground transition-colors">Business Pricing</Link>
             <a href="mailto:trade@pccustomizer.com" className="hover:text-foreground transition-colors">
               trade@pccustomizer.com
             </a>

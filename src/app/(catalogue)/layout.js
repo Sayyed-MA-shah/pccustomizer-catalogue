@@ -1,4 +1,3 @@
-import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import CatalogueHeader from '@/components/catalogue/CatalogueHeader'
 
@@ -16,12 +15,9 @@ export default async function CatalogueLayout({ children }) {
     if (data?.status === 'approved') profile = data
   }
 
-  const headersList = await headers()
-  const pathname = headersList.get('x-pathname') || ''
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <CatalogueHeader profile={profile} currentPath={pathname} />
+      <CatalogueHeader profile={profile} />
       <div className="flex-1 flex flex-col">
         {children}
       </div>
