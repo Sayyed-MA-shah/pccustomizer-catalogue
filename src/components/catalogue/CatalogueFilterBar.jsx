@@ -28,10 +28,16 @@ const ALL_SORT_OPTIONS = [
   { value: 'title_desc', label: 'Name: Z–A',           priceSort: false },
 ]
 
-const FILTER_PARAMS = ['category', 'brand', 'condition', 'in_stock']
+const FILTER_PARAMS = ['category', 'subcategory', 'brand', 'condition', 'in_stock']
 
 export default function CatalogueFilterBar({ options = {}, canPriceSort = true }) {
-  const { categories = [], brands = [], conditions = [] } = options
+  const {
+    categories = [],
+    subcategories = [],
+    brands = [],
+    conditions = [],
+  } = options
+
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -46,6 +52,8 @@ export default function CatalogueFilterBar({ options = {}, canPriceSort = true }
   const setParam = useCallback((key, value) => {
     const params = new URLSearchParams(searchParams.toString())
     value && value !== 'all' ? params.set(key, value) : params.delete(key)
+    // Clear subcategory when category changes
+    if (key === 'category') params.delete('subcategory')
     params.delete('page')
     router.push(`${pathname}?${params.toString()}`)
   }, [router, searchParams, pathname])
@@ -57,7 +65,6 @@ export default function CatalogueFilterBar({ options = {}, canPriceSort = true }
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  // Filter selects — rendered in both desktop bar and mobile sheet
   const filterSelects = (mobile = false) => (
     <>
       {categories.length > 0 && (
@@ -67,6 +74,16 @@ export default function CatalogueFilterBar({ options = {}, canPriceSort = true }
           value={get('category')}
           options={categories}
           onChange={v => { setParam('category', v); if (mobile) setSheetOpen(false) }}
+          mobile={mobile}
+        />
+      )}
+      {subcategories.length > 0 && (
+        <FilterSelect
+          label="Subcategory"
+          allLabel="All subcategories"
+          value={get('subcategory')}
+          options={subcategories.map(s => ({ value: s, label: s }))}
+          onChange={v => { setParam('subcategory', v); if (mobile) setSheetOpen(false) }}
           mobile={mobile}
         />
       )}

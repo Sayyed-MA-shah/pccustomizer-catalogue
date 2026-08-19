@@ -1,15 +1,17 @@
 import Link from 'next/link'
-import { Package, Search, ShieldCheck, Truck } from 'lucide-react'
+import { Package, ShieldCheck, Truck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { getProducts, sanitizeProduct } from '@/lib/catalogue-api'
+import { getCategories, getProducts, sanitizeProduct } from '@/lib/catalogue-api'
 import CatalogueHeader from '@/components/catalogue/CatalogueHeader'
+import CategoryCard from '@/components/catalogue/CategoryCard'
 import ProductCard from '@/components/catalogue/ProductCard'
+import HomepageSearchBar from '@/components/catalogue/HomepageSearchBar'
 
-export const revalidate = 60
+export const revalidate = 0
 
 export const metadata = {
   title: 'PCCustomizer — Business Technology',
-  description: 'Professional IT hardware and technology for businesses. Apply for a trade account to access exclusive pricing.',
+  description: 'Professional IT hardware and technology for businesses. Browse by category or apply for a business account to access exclusive pricing.',
 }
 
 export default async function HomePage() {
@@ -26,79 +28,82 @@ export default async function HomePage() {
     if (data?.status === 'approved') profile = data
   }
 
-  let featured = []
-  try {
-    const result = await getProducts({ page_size: '6', sort: 'newest' })
-    const raw = result?.data ?? result?.products ?? (Array.isArray(result) ? result : [])
-    featured = raw.map(p => sanitizeProduct(p, 'website'))
-  } catch {}
+  const [categories, productsResult] = await Promise.all([
+    getCategories(),
+    getProducts({ page_size: '8', sort: 'newest' }).catch(() => null),
+  ])
+
+  const rawProducts = productsResult?.data ?? productsResult?.products ?? (Array.isArray(productsResult) ? productsResult : [])
+  const featured = rawProducts.map(p => sanitizeProduct(p, 'website'))
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <CatalogueHeader profile={profile} />
+      <CatalogueHeader profile={profile} categories={categories} />
 
       <main className="flex-1">
         {/* ── Hero ── */}
         <section className="border-b bg-gradient-to-b from-muted/40 to-background">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center space-y-6">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-14 sm:py-20 text-center space-y-5">
             <h1 className="text-4xl sm:text-5xl font-bold text-foreground tracking-tight leading-tight">
               Business Technology.<br />
-              <span className="text-primary">Better Pricing.</span>
+              <span className="text-primary">Shop by Category.</span>
             </h1>
-            <p className="max-w-xl mx-auto text-lg text-muted-foreground leading-relaxed">
-              Professional IT hardware, components, and peripherals — priced for the trade.
-              Browse our catalogue freely. Apply for a business account to unlock your tier pricing.
+            <p className="max-w-lg mx-auto text-base text-muted-foreground leading-relaxed">
+              Professional IT hardware, components, and peripherals. Browse freely at public pricing.
+              Apply for a business account to unlock your tier rates.
             </p>
 
-            {/* Search bar */}
-            <form method="GET" action="/products" className="max-w-md mx-auto flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <input
-                  name="q"
-                  type="search"
-                  placeholder="Search products…"
-                  className="w-full h-10 pl-9 pr-4 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                />
-              </div>
-              <button
-                type="submit"
-                className="h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Search
-              </button>
-            </form>
+            <HomepageSearchBar />
 
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
               <Link
                 href="/products"
                 className="inline-flex h-10 items-center rounded-md border border-input bg-background px-5 text-sm font-medium hover:bg-muted transition-colors"
               >
-                Browse catalogue
+                Shop all products
               </Link>
               {!profile && (
                 <Link
-                  href="/register"
+                  href="/business"
                   className="inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
-                  Apply for business access
+                  Business pricing
                 </Link>
               )}
             </div>
           </div>
         </section>
 
-        {/* ── Featured products ── */}
-        {featured.length > 0 && (
+        {/* ── Shop by Category ── */}
+        {categories.length > 0 && (
           <section className="border-b">
             <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-12 space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-foreground">Latest products</h2>
+                <h2 className="text-lg font-bold text-foreground">Shop by Category</h2>
                 <Link href="/products" className="text-sm font-medium text-primary hover:underline underline-offset-4">
                   View all →
                 </Link>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {categories.map(cat => (
+                  <CategoryCard key={cat.id ?? cat.name} category={cat} />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── New Arrivals ── */}
+        {featured.length > 0 && (
+          <section className="border-b bg-muted/20">
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-12 space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-foreground">New Arrivals</h2>
+                <Link href="/products?sort=newest" className="text-sm font-medium text-primary hover:underline underline-offset-4">
+                  View all →
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {featured.map(product => (
                   <ProductCard key={product.id} product={product} />
                 ))}
@@ -108,17 +113,11 @@ export default async function HomePage() {
         )}
 
         {/* ── Why PCCustomizer ── */}
-        <section className="border-b bg-muted/20">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-12 space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="text-lg font-bold text-foreground">Built for business</h2>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Everything you need to source technology at scale, with the trust and pricing structure your business demands.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <section className="border-b">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-10 space-y-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
               <div className="flex gap-4">
-                <div className="w-9 h-9 shrink-0 rounded-md bg-background border flex items-center justify-center">
+                <div className="w-9 h-9 shrink-0 rounded-md bg-muted border flex items-center justify-center">
                   <Package className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
@@ -129,18 +128,18 @@ export default async function HomePage() {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-9 h-9 shrink-0 rounded-md bg-background border flex items-center justify-center">
+                <div className="w-9 h-9 shrink-0 rounded-md bg-muted border flex items-center justify-center">
                   <ShieldCheck className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">Tiered account pricing</p>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Approved accounts access Retail, Wholesale, or Trade rates — automatically applied.
+                    Retail, Wholesale, and Trade rates — applied automatically when you log in.
                   </p>
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-9 h-9 shrink-0 rounded-md bg-background border flex items-center justify-center">
+                <div className="w-9 h-9 shrink-0 rounded-md bg-muted border flex items-center justify-center">
                   <Truck className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
@@ -154,26 +153,26 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── Business account callout (guests only) ── */}
+        {/* ── Business pricing callout (guests only) ── */}
         {!profile && (
           <section className="border-b">
-            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-12">
-              <div className="rounded-xl border bg-muted/30 px-6 py-8 sm:px-10 text-center space-y-4 max-w-2xl mx-auto">
-                <h2 className="text-lg font-bold text-foreground">Business account pricing</h2>
+            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-10">
+              <div className="rounded-xl border bg-muted/30 px-6 py-7 sm:px-10 text-center space-y-3 max-w-2xl mx-auto">
+                <h2 className="text-base font-bold text-foreground">Business account pricing</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Three account tiers — Retail, Wholesale, and Trade — for approved business customers.
-                  Apply once; your pricing is applied automatically across the entire catalogue.
+                  Retail, Wholesale, and Trade accounts for approved business customers.
+                  Apply once — your pricing is applied automatically across the catalogue.
                 </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1">
                   <Link
                     href="/business"
-                    className="inline-flex h-9 items-center rounded-md border border-input bg-background px-5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                    className="inline-flex h-9 items-center rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground hover:bg-muted transition-colors"
                   >
                     Learn about account types
                   </Link>
                   <Link
                     href="/register"
-                    className="inline-flex h-9 items-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                    className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                   >
                     Apply for business access
                   </Link>

@@ -1,10 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Menu, X } from 'lucide-react'
+import { ChevronDown, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import CartNavItem from './CartNavItem'
 import UserMenuButton from './UserMenuButton'
 
@@ -24,13 +31,14 @@ function NavLink({ href, active, children }) {
   )
 }
 
-function MobileNavLink({ href, active, onClick, children }) {
+function MobileNavLink({ href, active, onClick, children, indent = false }) {
   return (
     <Link
       href={href}
       onClick={onClick}
       className={cn(
-        'flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
+        'flex items-center rounded-md text-sm font-medium transition-colors',
+        indent ? 'px-5 py-2' : 'px-3 py-2.5',
         active
           ? 'bg-muted text-foreground'
           : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -41,14 +49,16 @@ function MobileNavLink({ href, active, onClick, children }) {
   )
 }
 
-export default function CatalogueHeader({ profile }) {
+export default function CatalogueHeader({ profile, categories = [] }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [mobileOpen, setMobileOpen] = useState(false)
   const isGuest = !profile
 
   const closeMobile = () => setMobileOpen(false)
-
+  const onProducts = pathname.startsWith('/products')
   const onOrders = pathname.startsWith('/orders') && !pathname.startsWith('/orders/guest')
+  const activeCategory = searchParams.get('category')
 
   return (
     <>
@@ -71,17 +81,54 @@ export default function CatalogueHeader({ profile }) {
 
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-1">
-              <NavLink href="/products" active={pathname.startsWith('/products')}>
-                Products
-              </NavLink>
+              {/* Products — dropdown if categories available */}
+              {categories.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className={cn(
+                      'flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors outline-none',
+                      onProducts
+                        ? 'bg-muted text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    )}
+                  >
+                    Products
+                    <ChevronDown className="w-3 h-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-52">
+                    <DropdownMenuItem asChild>
+                      <Link href="/products" className="cursor-pointer">
+                        All Products
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {categories.map(cat => (
+                      <DropdownMenuItem key={cat.id ?? cat.name} asChild>
+                        <Link
+                          href={`/products?category=${encodeURIComponent(cat.name)}`}
+                          className="cursor-pointer flex items-center justify-between"
+                        >
+                          {cat.name}
+                          {cat.product_count != null && (
+                            <span className="ml-3 text-xs text-muted-foreground">
+                              {cat.product_count}
+                            </span>
+                          )}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <NavLink href="/products" active={onProducts}>Products</NavLink>
+              )}
+
               {isGuest ? (
                 <NavLink href="/business" active={pathname.startsWith('/business')}>
                   Business Pricing
                 </NavLink>
               ) : (
-                <NavLink href="/orders" active={onOrders}>
-                  My Orders
-                </NavLink>
+                <NavLink href="/orders" active={onOrders}>My Orders</NavLink>
               )}
             </nav>
 
@@ -123,11 +170,8 @@ export default function CatalogueHeader({ profile }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={closeMobile}
-            aria-hidden="true"
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={closeMobile} aria-hidden="true" />
+
           {/* Panel */}
           <div className="absolute top-0 right-0 h-full w-72 max-w-[85vw] bg-background border-l shadow-xl flex flex-col">
             {/* Panel header */}
@@ -149,22 +193,41 @@ export default function CatalogueHeader({ profile }) {
 
             {/* Nav links */}
             <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-              <MobileNavLink href="/products" active={pathname.startsWith('/products')} onClick={closeMobile}>
-                Products
+              {/* Products + category sub-links */}
+              <MobileNavLink
+                href="/products"
+                active={onProducts && !activeCategory}
+                onClick={closeMobile}
+              >
+                All Products
               </MobileNavLink>
+              {categories.map(cat => (
+                <MobileNavLink
+                  key={cat.id ?? cat.name}
+                  href={`/products?category=${encodeURIComponent(cat.name)}`}
+                  active={onProducts && activeCategory === cat.name}
+                  onClick={closeMobile}
+                  indent
+                >
+                  {cat.name}
+                </MobileNavLink>
+              ))}
+
+              <div className="pt-1 border-t mt-1" />
+
               {isGuest ? (
                 <MobileNavLink href="/business" active={pathname.startsWith('/business')} onClick={closeMobile}>
                   Business Pricing
                 </MobileNavLink>
               ) : (
-                <MobileNavLink href="/orders" active={onOrders} onClick={closeMobile}>
-                  My Orders
-                </MobileNavLink>
-              )}
-              {!isGuest && (
-                <MobileNavLink href="/account" active={pathname.startsWith('/account')} onClick={closeMobile}>
-                  My Account
-                </MobileNavLink>
+                <>
+                  <MobileNavLink href="/orders" active={onOrders} onClick={closeMobile}>
+                    My Orders
+                  </MobileNavLink>
+                  <MobileNavLink href="/account" active={pathname.startsWith('/account')} onClick={closeMobile}>
+                    My Account
+                  </MobileNavLink>
+                </>
               )}
             </nav>
 

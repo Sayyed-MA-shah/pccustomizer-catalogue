@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCategories } from '@/lib/catalogue-api'
 import CatalogueHeader from '@/components/catalogue/CatalogueHeader'
 
 export default async function CatalogueLayout({ children }) {
@@ -15,9 +16,11 @@ export default async function CatalogueLayout({ children }) {
     if (data?.status === 'approved') profile = data
   }
 
+  const categories = await getCategories()
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <CatalogueHeader profile={profile} />
+      <CatalogueHeader profile={profile} categories={categories} />
       <div className="flex-1 flex flex-col">
         {children}
       </div>

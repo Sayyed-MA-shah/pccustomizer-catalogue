@@ -90,20 +90,41 @@ export async function getProduct(id) {
   return result?.data ?? result
 }
 
-// Derives available filter options from an unfiltered product sample.
+export async function getCategories() {
+  try {
+    const result = await catalogueFetch('/categories')
+    return result?.data ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function getSubcategories(category) {
+  try {
+    const params = new URLSearchParams()
+    params.set('category', String(category).slice(0, 100))
+    const result = await catalogueFetch(`/subcategories?${params}`)
+    const data = result?.data ?? result
+    if (!Array.isArray(data)) return []
+    // Handle both string arrays and object arrays
+    return data.map(s => (typeof s === 'string' ? s : (s.name ?? s.slug ?? String(s))))
+  } catch {
+    return []
+  }
+}
+
+// Derives brand and condition filter options from an unfiltered product sample.
 // NOTE: Reflects values in the first MAX_PAGE_SIZE (50) products only.
-// A dedicated /filters or /facets API endpoint would provide complete coverage
-// across the full catalogue without this page-size constraint.
+// A dedicated /facets API endpoint would provide complete coverage without this limit.
 export async function getFilterOptions() {
   try {
     const result = await catalogueFetch(`/products?page_size=${MAX_PAGE_SIZE}`)
     const products = result?.data ?? []
     return {
-      categories: [...new Set(products.map(p => p.category).filter(Boolean))].sort(),
       brands:     [...new Set(products.map(p => p.brand).filter(Boolean))].sort(),
       conditions: [...new Set(products.map(p => p.condition).filter(Boolean))].sort(),
     }
   } catch {
-    return { categories: [], brands: [], conditions: [] }
+    return { brands: [], conditions: [] }
   }
 }

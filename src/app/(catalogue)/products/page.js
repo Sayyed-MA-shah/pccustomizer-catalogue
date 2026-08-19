@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { AlertTriangle, Package, X } from 'lucide-react'
-import { getProducts, getFilterOptions, sanitizeProduct } from '@/lib/catalogue-api'
+import { getProducts, getCategories, getSubcategories, getFilterOptions, sanitizeProduct } from '@/lib/catalogue-api'
 import { getCustomerProfile } from '@/lib/auth-helpers'
 import ProductCard from '@/components/catalogue/ProductCard'
 import CatalogueSearchBar from '@/components/catalogue/CatalogueSearchBar'
@@ -55,6 +56,7 @@ async function ProductResults({ searchParams, segment }) {
     result = await getProducts({
       search:        searchParams.q,
       category:      searchParams.category,
+      subcategory:   searchParams.subcategory,
       condition:     searchParams.condition,
       brand:         searchParams.brand,
       in_stock:      searchParams.in_stock,
@@ -84,7 +86,7 @@ async function ProductResults({ searchParams, segment }) {
   const rawProducts = result?.data ?? result?.products ?? (Array.isArray(result) ? result : [])
   const products = rawProducts.map(p => sanitizeProduct(p, segment))
   const total = result?.pagination?.total ?? result?.total ?? rawProducts.length
-  const hasFilters = ['category', 'brand', 'condition', 'in_stock', 'q'].some(k => searchParams[k])
+  const hasFilters = ['category', 'brand', 'condition', 'in_stock', 'q', 'subcategory'].some(k => searchParams[k])
 
   if (products.length === 0) {
     return (
@@ -92,7 +94,11 @@ async function ProductResults({ searchParams, segment }) {
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
           <Package className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h3 className="text-sm font-medium text-foreground">No products found</h3>
+        <h3 className="text-sm font-medium text-foreground">
+          {searchParams.category
+            ? `No products available in ${searchParams.category}`
+            : 'No products found'}
+        </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {hasFilters
             ? 'No products match your current filters. Try adjusting your search or filters.'
@@ -128,10 +134,11 @@ async function ProductResults({ searchParams, segment }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function ProductsPage({ searchParams }) {
-  const [params, profile, filterOptions] = await Promise.all([
+  const [params, profile, filterOptions, categories] = await Promise.all([
     searchParams,
     getCustomerProfile(),
     getFilterOptions(),
+    getCategories(),
   ])
 
   // Guests and unapproved users see website_price; approved customers see their tier price
@@ -139,10 +146,26 @@ export default async function ProductsPage({ searchParams }) {
   const segment = isApproved ? (profile.customer_segment ?? 'website') : 'website'
   const isAccountCustomer = isApproved && profile?.customer_segment
 
+  // Find the active category object (for heading, description, count)
+  const activeCategory = params.category
+    ? categories.find(c => c.name === params.category || c.slug === params.category) ?? null
+    : null
+
+  // Fetch subcategories when a category is active
+  const subcategories = params.category
+    ? await getSubcategories(params.category)
+    : []
+
+  // Build filter options: categories from API, brands/conditions from product sample
+  const filterOpts = {
+    categories: categories.map(c => ({ value: c.name, label: c.name })),
+    brands:     filterOptions.brands,
+    conditions: filterOptions.conditions,
+    subcategories,
+  }
+
   const paramsKey = new URLSearchParams(
-    Object.fromEntries(
-      Object.entries(params).filter(([, v]) => v != null)
-    )
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
   ).toString()
 
   return (
@@ -150,16 +173,39 @@ export default async function ProductsPage({ searchParams }) {
       {/* ── Page header ── */}
       <div className="border-b bg-background">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-5 space-y-4">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Products</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isAccountCustomer
-                ? 'Browse with your account pricing applied.'
-                : 'Browse our full product range. Prices shown are public rates.'}
-            </p>
-          </div>
+          {activeCategory ? (
+            /* Category context heading */
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                <Link href="/products" className="hover:text-foreground transition-colors">
+                  All Products
+                </Link>
+                <span>/</span>
+                <span className="text-foreground">{activeCategory.name}</span>
+              </div>
+              <h1 className="text-xl font-bold text-foreground">{activeCategory.name}</h1>
+              <p className="text-sm text-muted-foreground">
+                {activeCategory.product_count != null
+                  ? `${activeCategory.product_count} product${activeCategory.product_count !== 1 ? 's' : ''}`
+                  : isAccountCustomer ? 'Browse with your account pricing applied.' : 'Public pricing shown.'}
+                {activeCategory.description && ` — ${activeCategory.description}`}
+              </p>
+            </div>
+          ) : (
+            /* Generic heading */
+            <div>
+              <h1 className="text-xl font-bold text-foreground">
+                {params.q ? `Results for "${params.q}"` : 'Products'}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {isAccountCustomer
+                  ? 'Browse with your account pricing applied.'
+                  : 'Browse our full product range. Prices shown are public rates.'}
+              </p>
+            </div>
+          )}
           <CatalogueSearchBar />
-          <CatalogueFilterBar options={filterOptions} canPriceSort={true} />
+          <CatalogueFilterBar options={filterOpts} canPriceSort={true} />
         </div>
       </div>
 
