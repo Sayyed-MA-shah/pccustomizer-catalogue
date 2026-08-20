@@ -90,6 +90,8 @@ export const config = {
     // Public routes — included only for session cookie refresh
     '/products',
     '/products/:path*',
+    '/clearance',
+    '/clearance/:path*',
     '/cart',
     '/cart/:path*',
     // Guest order lookup — public

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { Menu, LayoutDashboard, Users, ClipboardList, ShoppingBag, LogOut } from 'lucide-react'
+import { Menu, LayoutDashboard, Users, ClipboardList, ShoppingBag, LogOut, PackageOpen, Gavel } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -13,6 +13,8 @@ const navItems = [
   { href: '/admin/requests', icon: ClipboardList, label: 'Access Requests' },
   { href: '/admin/customers', icon: Users, label: 'Customers' },
   { href: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
+  { href: '/admin/faulty-lots', icon: PackageOpen, label: 'Faulty / Parts' },
+  { href: '/admin/auctions', icon: Gavel, label: 'Auctions' },
 ]
 
 function NavLink({ item, pathname, onClick }) {
