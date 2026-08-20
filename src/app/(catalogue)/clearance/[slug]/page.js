@@ -7,11 +7,7 @@ import LotCategoryBadge from '@/components/admin/LotCategoryBadge'
 
 export const revalidate = 0
 
-const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_URL
-  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/special-listing-images/`
-  : ''
-
-function imageUrl(storagePath) { return `${BUCKET}${storagePath}` }
+const BUCKET = 'special-listing-images'
 
 function fmtPrice(v) {
   if (v == null) return null
@@ -38,24 +34,34 @@ export default async function ClearanceDetailPage({ params }) {
   const { slug } = await params
   const service = createServiceClient()
 
+  // Fetch lot
   const { data: lot, error } = await service
     .from('special_listings')
-    .select(`
-      *,
-      special_listing_items(*),
-      special_listing_images(* ORDER BY sort_order ASC, created_at ASC)
-    `)
+    .select('*')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()
 
   if (error || !lot) notFound()
 
-  const images = (lot.special_listing_images ?? []).map(img => ({
-    ...img,
-    url: imageUrl(img.storage_path),
-  }))
-  const items = lot.special_listing_items ?? []
+  // Fetch items and images separately for correct ordering
+  const [itemsResult, imagesResult] = await Promise.all([
+    service.from('special_listing_items').select('*').eq('listing_id', lot.id).order('created_at', { ascending: true }),
+    service.from('special_listing_images').select('*').eq('listing_id', lot.id)
+      .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
+  ])
+
+  const items = itemsResult.data ?? []
+  const rawImages = imagesResult.data ?? []
+
+  // Generate signed URLs for public display (1h — page revalidate=0 so always fresh)
+  const images = await Promise.all(
+    rawImages.map(async (img) => {
+      const { data: su } = await service.storage.from(BUCKET).createSignedUrl(img.storage_path, 3600)
+      return { ...img, signed_url: su?.signedUrl ?? null }
+    })
+  )
+
   const priceText = fmtPrice(lot.fixed_price)
 
   return (
@@ -77,26 +83,36 @@ export default async function ClearanceDetailPage({ params }) {
           {images.length > 0 ? (
             <div className="space-y-3">
               <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-muted">
-                <Image
-                  src={images[0].url}
-                  alt={images[0].alt_text || lot.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 1024px) 100vw, 800px"
-                  priority
-                />
+                {images[0].signed_url ? (
+                  <Image
+                    src={images[0].signed_url}
+                    alt={images[0].alt_text || lot.title}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 800px"
+                    priority
+                    unoptimized
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <Package className="w-16 h-16 text-muted-foreground/20" />
+                  </div>
+                )}
               </div>
               {images.length > 1 && (
                 <div className="grid grid-cols-4 gap-2">
                   {images.slice(1).map((img, i) => (
                     <div key={img.id} className="relative aspect-square rounded-md overflow-hidden bg-muted">
-                      <Image
-                        src={img.url}
-                        alt={img.alt_text || `Image ${i + 2}`}
-                        fill
-                        className="object-cover"
-                        sizes="120px"
-                      />
+                      {img.signed_url ? (
+                        <Image
+                          src={img.signed_url}
+                          alt={img.alt_text || `Image ${i + 2}`}
+                          fill
+                          className="object-cover"
+                          sizes="120px"
+                          unoptimized
+                        />
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -116,10 +132,12 @@ export default async function ClearanceDetailPage({ params }) {
             </div>
           )}
 
-          {/* Lot items table */}
+          {/* Items table */}
           {items.length > 0 && (
             <div className="space-y-2">
-              <h2 className="text-base font-semibold text-foreground">Included items ({items.length})</h2>
+              <h2 className="text-base font-semibold text-foreground">
+                Included items ({items.length})
+              </h2>
               <div className="rounded-lg border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
@@ -137,6 +155,9 @@ export default async function ClearanceDetailPage({ params }) {
                           <p className="text-xs text-muted-foreground">
                             {[item.brand_snapshot, item.model_snapshot].filter(Boolean).join(' · ')}
                           </p>
+                          {item.notes && (
+                            <p className="text-xs text-muted-foreground mt-0.5 italic">{item.notes}</p>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 text-xs text-muted-foreground hidden sm:table-cell">
                           {item.condition_snapshot || '—'}
@@ -152,12 +173,10 @@ export default async function ClearanceDetailPage({ params }) {
         </div>
 
         {/* Right: price + CTA */}
-        <div className="lg:sticky lg:top-24 space-y-5">
+        <div className="lg:sticky lg:top-24 space-y-4">
           <div className="rounded-xl border bg-card p-5 space-y-4">
             <div>
-              <div className="flex items-start gap-2 flex-wrap">
-                <LotCategoryBadge category={lot.listing_category} />
-              </div>
+              <LotCategoryBadge category={lot.listing_category} />
               <h1 className="text-xl font-bold text-foreground mt-2 leading-snug">{lot.title}</h1>
               <p className="text-xs font-mono text-muted-foreground mt-1">{lot.listing_number}</p>
             </div>
@@ -173,7 +192,9 @@ export default async function ClearanceDetailPage({ params }) {
                 <p className="text-base text-muted-foreground">Price on application</p>
               )}
               {lot.quantity_total > 0 && (
-                <p className="text-sm text-muted-foreground">{lot.quantity_total} unit{lot.quantity_total !== 1 ? 's' : ''} in this lot</p>
+                <p className="text-sm text-muted-foreground">
+                  {lot.quantity_total} unit{lot.quantity_total !== 1 ? 's' : ''} in this lot
+                </p>
               )}
             </div>
 
@@ -183,7 +204,6 @@ export default async function ClearanceDetailPage({ params }) {
               </div>
             )}
 
-            {/* Contact CTA */}
             <div className="space-y-2 border-t pt-4">
               <p className="text-sm font-medium text-foreground">Interested in this lot?</p>
               <p className="text-xs text-muted-foreground">Contact our trade team to arrange purchase or collection.</p>

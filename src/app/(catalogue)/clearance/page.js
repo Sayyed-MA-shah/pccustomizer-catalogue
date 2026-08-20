@@ -9,9 +9,7 @@ export const metadata = {
   description: 'Clearance items, faulty/for-parts lots, and refurbished bulk stock available at special prices.',
 }
 
-const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_URL
-  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/special-listing-images/`
-  : ''
+const BUCKET = 'special-listing-images'
 
 const CATEGORY_FILTERS = [
   { label: 'All',              value: null },
@@ -26,11 +24,14 @@ export default async function ClearancePage({ searchParams }) {
   const activeCategory = params.category ?? null
 
   const service = createServiceClient()
+
+  // Fetch published public listings with their cover image path
   let query = service
     .from('special_listings')
     .select(`
-      id, slug, listing_number, title, short_description, listing_category, fixed_price, quantity_total,
-      special_listing_images(storage_path ORDER BY sort_order ASC, created_at ASC)
+      id, slug, listing_number, title, short_description,
+      listing_category, fixed_price, quantity_total,
+      special_listing_images(storage_path, sort_order, created_at)
     `)
     .eq('status', 'published')
     .eq('visibility', 'public')
@@ -40,13 +41,22 @@ export default async function ClearancePage({ searchParams }) {
 
   const { data: listings } = await query
 
-  const lots = (listings ?? []).map(lot => {
-    const cover = lot.special_listing_images?.[0]
-    return {
-      ...lot,
-      cover_url: cover ? `${BUCKET}${cover.storage_path}` : null,
-    }
-  })
+  // Generate signed URL for the cover image of each listing (1h expiry — page has revalidate=0)
+  const lots = await Promise.all(
+    (listings ?? []).map(async (lot) => {
+      const sortedImages = (lot.special_listing_images ?? [])
+        .sort((a, b) => a.sort_order - b.sort_order || new Date(a.created_at) - new Date(b.created_at))
+      const coverPath = sortedImages[0]?.storage_path ?? null
+
+      let cover_url = null
+      if (coverPath) {
+        const { data: su } = await service.storage.from(BUCKET).createSignedUrl(coverPath, 3600)
+        cover_url = su?.signedUrl ?? null
+      }
+
+      return { ...lot, cover_url }
+    })
+  )
 
   return (
     <div className="flex flex-1 flex-col">
@@ -55,10 +65,10 @@ export default async function ClearancePage({ searchParams }) {
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-8 space-y-3">
           <h1 className="text-2xl font-bold text-foreground">Clearance &amp; Special Lots</h1>
           <p className="text-sm text-muted-foreground max-w-xl">
-            Faulty/for-parts lots, refurbished bulk stock, and clearance items. All lots sold as described — no returns on faulty parts.
+            Faulty/for-parts lots, refurbished bulk stock, and clearance items.
+            All lots sold as described — no returns on faulty parts.
           </p>
 
-          {/* Category filter */}
           <div className="flex flex-wrap gap-2 pt-1">
             {CATEGORY_FILTERS.map(({ label, value }) => {
               const isActive = activeCategory === value

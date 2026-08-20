@@ -1,5 +1,6 @@
 -- Migration 006: Special Listings (Faulty/Parts lots + auction-ready schema)
--- Run in Supabase SQL Editor.
+-- Run the FULL contents of this file in Supabase SQL Editor.
+-- After running, also create the storage bucket per the instructions at the bottom.
 
 -- ── Listing number sequence (thread-safe) ─────────────────────────────────────
 
@@ -113,16 +114,35 @@ CREATE POLICY "public read published listing images"
 
 -- All mutations are via service role in admin API routes (no authenticated INSERT/UPDATE/DELETE policies)
 
--- ── Storage bucket ────────────────────────────────────────────────────────────
--- Run these separately in Storage settings or SQL if storage schema is available:
+-- ── Storage bucket (PRIVATE — images served via signed URLs only) ─────────────
+-- Run this block in SQL Editor after the tables above.
+-- If your SQL user cannot INSERT into storage.buckets, create the bucket
+-- manually in the Supabase dashboard (Storage > New bucket) with:
+--   Name: special-listing-images
+--   Public: OFF (private)
+--   File size limit: 10 MB
+--   Allowed MIME types: image/jpeg, image/png, image/webp
 --
--- INSERT INTO storage.buckets (id, name, public) VALUES ('special-listing-images', 'special-listing-images', true)
--- ON CONFLICT (id) DO NOTHING;
---
--- CREATE POLICY "public read listing images"
---   ON storage.objects FOR SELECT TO public
---   USING (bucket_id = 'special-listing-images');
---
--- CREATE POLICY "service role manage listing images"
---   ON storage.objects FOR ALL TO service_role
---   USING (bucket_id = 'special-listing-images');
+-- Then run only the CREATE POLICY statements below in SQL Editor.
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'special-listing-images',
+  'special-listing-images',
+  false,
+  10485760,
+  ARRAY['image/jpeg', 'image/png', 'image/webp']
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Service role: full access for admin API routes
+CREATE POLICY "service role manage listing images"
+  ON storage.objects FOR ALL TO service_role
+  USING (bucket_id = 'special-listing-images')
+  WITH CHECK (bucket_id = 'special-listing-images');
+
+-- No public read policy — clients receive signed URLs generated server-side only
+
+-- ── After running, force PostgREST schema cache refresh ──────────────────────
+-- Run this if you still see "table not found" errors after the migration:
+-- NOTIFY pgrst, 'reload schema';

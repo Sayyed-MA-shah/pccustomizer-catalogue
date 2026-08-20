@@ -31,14 +31,23 @@ export async function GET(request, { params }) {
   const { id } = await params
   const service = createServiceClient()
 
-  const { data, error } = await service
+  const { data: rows, error } = await service
     .from('special_listing_images')
     .select('*')
     .eq('listing_id', id)
     .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data: data ?? [] })
+  if (!rows || rows.length === 0) return NextResponse.json({ data: [] })
+
+  const data = await Promise.all(
+    rows.map(async (img) => {
+      const { data: su } = await service.storage.from(BUCKET).createSignedUrl(img.storage_path, 86400)
+      return { ...img, signed_url: su?.signedUrl ?? null }
+    })
+  )
+  return NextResponse.json({ data })
 }
 
 export async function POST(request, { params }) {
@@ -95,6 +104,11 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
 
-  const { data: { publicUrl } } = service.storage.from(BUCKET).getPublicUrl(storagePath)
-  return NextResponse.json({ data: { ...imageRow, public_url: publicUrl } }, { status: 201 })
+  const { data: signedUrlData } = await service.storage
+    .from(BUCKET)
+    .createSignedUrl(storagePath, 86400) // 24h for admin session
+
+  return NextResponse.json({
+    data: { ...imageRow, signed_url: signedUrlData?.signedUrl ?? null },
+  }, { status: 201 })
 }

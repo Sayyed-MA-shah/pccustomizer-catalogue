@@ -61,7 +61,11 @@ export default function LotStatusActions({ listingId, currentStatus }) {
           </Button>
         ))}
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2.5 text-xs text-destructive space-y-0.5">
+          {error.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+        </div>
+      )}
     </div>
   )
 }

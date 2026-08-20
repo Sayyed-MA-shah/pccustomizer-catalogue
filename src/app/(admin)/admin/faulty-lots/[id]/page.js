@@ -17,14 +17,14 @@ export async function generateMetadata({ params }) {
   return { title: data ? `${data.listing_number} — Admin` : 'Lot — Admin' }
 }
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const BUCKET_URL = SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/special-listing-images/` : ''
-
-function imageUrl(storagePath) { return `${BUCKET_URL}${storagePath}` }
+const BUCKET = 'special-listing-images'
 
 function fmt(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(d).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
 function fmtPrice(v) {
@@ -46,22 +46,27 @@ export default async function LotDetailPage({ params }) {
   const { id } = await params
   const service = createServiceClient()
 
-  const { data: lot, error } = await service
-    .from('special_listings')
-    .select(`
-      *,
-      special_listing_items(*),
-      special_listing_images(* ORDER BY sort_order ASC, created_at ASC)
-    `)
-    .eq('id', id)
-    .single()
+  // Fetch lot with items and images separately (avoids PostgREST embedded sort issues)
+  const [lotResult, itemsResult, imagesResult] = await Promise.all([
+    service.from('special_listings').select('*').eq('id', id).single(),
+    service.from('special_listing_items').select('*').eq('listing_id', id).order('created_at', { ascending: true }),
+    service.from('special_listing_images').select('*').eq('listing_id', id)
+      .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
+  ])
 
-  if (error || !lot) notFound()
+  if (lotResult.error || !lotResult.data) notFound()
 
-  const images = (lot.special_listing_images ?? []).map(img => ({
-    ...img,
-    public_url: imageUrl(img.storage_path),
-  }))
+  const lot = lotResult.data
+  const items = itemsResult.data ?? []
+  const rawImages = imagesResult.data ?? []
+
+  // Generate signed URLs server-side (24h expiry for admin session)
+  const images = await Promise.all(
+    rawImages.map(async (img) => {
+      const { data: su } = await service.storage.from(BUCKET).createSignedUrl(img.storage_path, 86400)
+      return { ...img, signed_url: su?.signedUrl ?? null }
+    })
+  )
 
   return (
     <div className="space-y-8">
@@ -101,7 +106,12 @@ export default async function LotDetailPage({ params }) {
         <h2 className="text-sm font-semibold text-foreground">Status</h2>
         <LotStatusActions listingId={lot.id} currentStatus={lot.status} />
         {lot.status === 'sold' && (
-          <p className="text-xs text-muted-foreground">This lot is marked as sold and cannot be republished.</p>
+          <p className="text-xs text-muted-foreground">This lot is marked as sold.</p>
+        )}
+        {lot.status === 'draft' && (
+          <p className="text-xs text-muted-foreground">
+            To publish: add a description, set a price, add at least one item and one image.
+          </p>
         )}
       </section>
 
@@ -116,7 +126,7 @@ export default async function LotDetailPage({ params }) {
           <Field label="Published" value={fmt(lot.published_at)} />
           <Field label="Created" value={fmt(lot.created_at)} />
         </div>
-        {lot.slug && <Field label="Slug" value={lot.slug} />}
+        <Field label="URL slug" value={lot.slug} />
         {lot.short_description && <Field label="Short description" value={lot.short_description} />}
         {lot.description && (
           <div>
@@ -129,13 +139,21 @@ export default async function LotDetailPage({ params }) {
 
       {/* Items */}
       <section className="rounded-lg border bg-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-foreground">Items</h2>
-        <LotItemsEditor listingId={lot.id} initialItems={lot.special_listing_items ?? []} />
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Included items</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{items.length} item{items.length !== 1 ? 's' : ''}</p>
+        </div>
+        <LotItemsEditor listingId={lot.id} initialItems={items} />
       </section>
 
       {/* Images */}
       <section className="rounded-lg border bg-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-foreground">Images</h2>
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Images</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {images.length} image{images.length !== 1 ? 's' : ''} — first image is the cover / primary.
+          </p>
+        </div>
         <LotImageManager listingId={lot.id} initialImages={images} />
       </section>
     </div>

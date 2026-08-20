@@ -20,7 +20,7 @@ async function verifyAdmin() {
   return adminRow ? { user, code: null } : { user: null, code: 403 }
 }
 
-// Valid transitions: draft→published, published→withdrawn, published→sold, any→draft
+// Valid transitions
 const VALID_TRANSITIONS = {
   draft:     ['published'],
   published: ['draft', 'withdrawn', 'sold'],
@@ -49,7 +49,7 @@ export async function POST(request, { params }) {
 
   const { data: current, error: fetchError } = await service
     .from('special_listings')
-    .select('id, status')
+    .select('id, status, title, listing_category, description, fixed_price, quantity_total, sale_method')
     .eq('id', id)
     .single()
 
@@ -61,6 +61,44 @@ export async function POST(request, { params }) {
       { error: `Cannot transition from '${current.status}' to '${newStatus}'` },
       { status: 409 }
     )
+  }
+
+  // ── Publish validation ────────────────────────────────────────────────────
+  if (newStatus === 'published') {
+    const [itemsResult, imagesResult] = await Promise.all([
+      service
+        .from('special_listing_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('listing_id', id),
+      service
+        .from('special_listing_images')
+        .select('id', { count: 'exact', head: true })
+        .eq('listing_id', id),
+    ])
+
+    const itemCount = itemsResult.count ?? 0
+    const imageCount = imagesResult.count ?? 0
+
+    const errors = []
+    if (!current.description?.trim()) {
+      errors.push('A description is required before publishing')
+    }
+    if ((current.quantity_total ?? 0) === 0) {
+      errors.push('Quantity total must be greater than 0')
+    }
+    if (current.sale_method === 'fixed_price' && current.fixed_price == null) {
+      errors.push('A fixed price is required for fixed-price lots')
+    }
+    if (itemCount === 0) {
+      errors.push('At least one item must be added before publishing')
+    }
+    if (imageCount === 0) {
+      errors.push('At least one image must be uploaded before publishing')
+    }
+
+    if (errors.length > 0) {
+      return NextResponse.json({ error: errors.join('\n') }, { status: 422 })
+    }
   }
 
   const timestampFields = {}
