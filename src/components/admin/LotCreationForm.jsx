@@ -209,7 +209,6 @@ export default function LotCreationForm() {
     setError(null)
     if (!title.trim()) { setError('Title is required'); return }
     if (!slug.trim()) { setError('Slug is required'); return }
-    if (items.length === 0) { setError('Add at least one item before creating the lot'); return }
 
     const totalQty = quantityTotal !== ''
       ? Math.max(0, parseInt(quantityTotal, 10) || 0)
@@ -384,8 +383,8 @@ export default function LotCreationForm() {
       {/* ── Items ── */}
       <section className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Included items <span className="text-destructive">*</span></h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Search the internal inventory to add products to this lot.</p>
+          <h3 className="text-sm font-semibold text-foreground">Included items</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Optional — search the internal inventory to add products to this lot.</p>
         </div>
 
         <ProductSearchInput onAdd={addProduct} existingProductIds={existingProductIds} />

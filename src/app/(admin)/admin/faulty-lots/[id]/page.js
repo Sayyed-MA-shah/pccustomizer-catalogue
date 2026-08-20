@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import LotStatusBadge from '@/components/admin/LotStatusBadge'
 import LotCategoryBadge from '@/components/admin/LotCategoryBadge'
 import LotStatusActions from '@/components/admin/LotStatusActions'
+import LotDetailsEditor from '@/components/admin/LotDetailsEditor'
 import LotItemsEditor from '@/components/admin/LotItemsEditor'
 import LotImageManager from '@/components/admin/LotImageManager'
 
@@ -27,20 +28,6 @@ function fmt(d) {
   })
 }
 
-function fmtPrice(v) {
-  if (v == null) return '—'
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(v)
-}
-
-function Field({ label, value }) {
-  if (value == null || value === '') return null
-  return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="text-sm text-foreground mt-0.5">{value}</p>
-    </div>
-  )
-}
 
 export default async function LotDetailPage({ params }) {
   const { id } = await params
@@ -117,24 +104,14 @@ export default async function LotDetailPage({ params }) {
 
       {/* Details */}
       <section className="rounded-lg border bg-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-foreground">Lot details</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <Field label="Fixed price" value={fmtPrice(lot.fixed_price)} />
-          <Field label="Quantity" value={lot.quantity_total} />
-          <Field label="Sale method" value={lot.sale_method === 'fixed_price' ? 'Fixed price' : 'Auction'} />
-          <Field label="Visibility" value={lot.visibility === 'public' ? 'Public' : 'Approved customers only'} />
-          <Field label="Published" value={fmt(lot.published_at)} />
-          <Field label="Created" value={fmt(lot.created_at)} />
-        </div>
-        <Field label="URL slug" value={lot.slug} />
-        {lot.short_description && <Field label="Short description" value={lot.short_description} />}
-        {lot.description && (
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Description</p>
-            <p className="text-sm text-foreground whitespace-pre-line">{lot.description}</p>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <h2 className="text-sm font-semibold text-foreground">Lot details</h2>
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span>Published: {fmt(lot.published_at)}</span>
+            <span>Created: {fmt(lot.created_at)}</span>
           </div>
-        )}
-        {lot.customer_notes && <Field label="Customer notes" value={lot.customer_notes} />}
+        </div>
+        <LotDetailsEditor lot={lot} />
       </section>
 
       {/* Items */}
